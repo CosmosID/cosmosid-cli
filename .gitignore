@@ -1,0 +1,8 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+.env/
+*.py[cod]
+pylint.log
+.venv/
+*.egg-info/
+
