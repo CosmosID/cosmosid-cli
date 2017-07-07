@@ -9,7 +9,7 @@
 
 from setuptools import setup, find_packages
 
-__version__ = '0.1ev1'
+__version__ = '0.0.1'
 
 setup(
     name='metagen_cli',
@@ -26,7 +26,7 @@ setup(
     keywords='API Client for CosmosID Metagen',
     url='https://www.cosmosid.com/',
     classifiers=[
-        'Environment::Console',
+        'Environment :: Console',
     ],
     entry_points={
         'console_scripts': ['metagen = metagen.cli:main'],

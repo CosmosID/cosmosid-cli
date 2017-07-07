@@ -23,7 +23,7 @@ class MetagenApp(App):
     def __init__(self):
         super(MetagenApp, self).__init__(
             description="""Client for interacting with the CosmosID Metagen""",
-            version='0.1ev1',
+            version='0.0.1',
             command_manager=CommandManager('metagen'),
             deferred_help=True)
         self.metagen = None

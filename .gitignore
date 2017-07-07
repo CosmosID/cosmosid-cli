@@ -5,4 +5,6 @@ __pycache__/
 pylint.log
 .venv/
 *.egg-info/
+dist/
+build/
 
