@@ -75,7 +75,7 @@ class Files(Lister):
             'name': ['name', 'str', _del_none],
             'status': ['status', 'str', _del_none],
             'size': ['size', 'int', _del_none],
-            'created': ['created', 'int', _set_date]
+            'created': ['created', 'str', _del_none]
         }
 
         """we need just items for output"""
