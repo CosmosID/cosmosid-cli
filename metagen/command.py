@@ -200,7 +200,7 @@ class Analysis(Lister):
                                     key=itemgetter(field_maps[parsed_args.order.lower()][0]),
                                     reverse=(not parsed_args.up)
                                     )
-        create_date = _set_date(analysis_content['file_metadata']['created'])
+        create_date = analysis_content['file_metadata']['created']
         for_output = [[item[field_maps[field][0]] for field in header] for item in items_data]
         self.logger.info('\nAnalysis list for {} (id: {}). Creation date: {}'
                          .format(analysis_content['file_metadata']['name'], ids, create_date))
