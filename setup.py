@@ -9,11 +9,13 @@
 
 from setuptools import setup, find_packages
 
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 
 setup(
-    name='cosmosid_cli',
+    name='cosmosid-cli',
     version=__version__,
+    description='API Client and Pyhthon 3 libraries for CosmosID',
+    long_description=open('README.rst').read(),
     packages=find_packages(exclude=['contrib', 'docs', '*tests*']),
     install_requires=['requests==2.17', 'cliff==2.8.0',
                       'six', 'boto3==1.4.2',
@@ -22,7 +24,6 @@ setup(
     dependency_links=[],
     author='CosmosID',
     author_email='support@cosmosid.com',
-    long_description=__doc__,
     keywords='API Client for CosmosID',
     url='https://www.cosmosid.com/',
     classifiers=[

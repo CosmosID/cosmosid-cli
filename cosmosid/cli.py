@@ -23,7 +23,7 @@ class CosmosidApp(App):
     def __init__(self):
         super(CosmosidApp, self).__init__(
             description="""Client for interacting with the CosmosID""",
-            version='0.0.1',
+            version='0.0.7',
             command_manager=CommandManager('cosmosid'),
             deferred_help=True)
         self.cosmosid = None

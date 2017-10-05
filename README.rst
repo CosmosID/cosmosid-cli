@@ -31,7 +31,7 @@ Basic installation
 ------------------
 
 The CLI with the core Python library may be installed using ``pip3``. \*
-simply run from console ``sudo pip3 install cosmosid_cli``
+simply run from console ``sudo pip3 install cosmosid-cli``
 
     Note: pip3 and setuptools should be upgraded to latest version. 
     Please update those packages on you workstation regarding to your 
