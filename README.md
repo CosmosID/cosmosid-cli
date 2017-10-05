@@ -30,13 +30,15 @@ The CLI with the core Python library can be installed using `pip3`.
 > $ sudo apt-get update
 > $ sudo apt-get upgrade
 > $ sudo -H pip3 install -U pip setuptools 
-```
+>```
 
 # Using the Cosmosid CLI
 
 The CosmosID CLI supports authentication via CosmosID API Key.
 Your API key can be found on the [CosmosID profile page](https://app.cosmosid.com/settings).
-To automatically authenticate via CosmosID API Key you should create credential file `~/.cosmosid` and store your API Key into it in the following format:
+To automatically authenticate via CosmosID API Key you should create  
+credential file `~/.cosmosid` and store your API Key into it in  
+the following format:
 ```json
 {"api_key": "<your api key string>"}
 ```
@@ -93,12 +95,14 @@ You can check the result of metagenomics analysis on the page [CosmosID CosmosId
 Amplicon analysis results available only from CosmosID CLI for now.
 
 ### Retrieving Analysis Results
+
 To retrieve analysis results for a specified file in CosmosID simply run `cosmosid` command with `analysis` subcommand. For example:
 ```shell
 #to get list of analysis for a given file id
 cosmosid analysis --id <file ID>
 
-#to get ordered list of analysis for a given file id simly use ordering argument with field name with/without order direction
+#to get ordered list of analysis for a given file id simly use ordering  
+argument with field name with/without order direction
 cosmosid analysis --id <file ID> --order created --up
 ```
 
@@ -109,7 +113,8 @@ The CosmosId CLI supports retrieving analysis reports archives from CosmosID for
 
 To retrieve an analysis report archive with CSV files run the `cosmosid` command with `reports` subcommand.
 ```shell
-#to create analysis report archive and save it in a current directory with a name equivalent to file name in CosmosID
+#to create analysis report archive and save it in a current directory with  
+a name equivalent to file name in CosmosID
 cosmosid reports --id <file ID>
 
 #to create analysis report archive and save it into given directory
