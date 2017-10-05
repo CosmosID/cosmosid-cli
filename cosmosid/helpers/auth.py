@@ -2,7 +2,7 @@
 import json
 import os
 import logging
-import metagen.utils as utils
+import cosmosid.utils as utils
 
 
 class ApiKeyAuth(object):
@@ -20,7 +20,7 @@ class ApiKeyAuth(object):
         return self.api_key
 
     def _get_api_key(self):
-        api_key_file = os.path.expanduser('~/.metagen')
+        api_key_file = os.path.expanduser('~/.cosmosid')
         api_key = {}
         if not os.path.exists(api_key_file):
             self.logger.error('Credentials file {} does not exist'

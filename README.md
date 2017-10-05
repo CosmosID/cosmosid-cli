@@ -1,6 +1,6 @@
-# Cosmos ID Metagen
+# Cosmos ID
 
- Command line interface (CLI) and Python client library for interacting with the CosmosID Metagen API.
+ Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API. Only works with Python 3, Python 2.7 is not supported yet.
 
 ## Requirements
 
@@ -17,88 +17,104 @@
 # Installation
 
 This package provides:
-* core Python client library;
-* a simple CLI for interacting with the CosmosID Metagen that uses the core library;
+* core Python 3 client library;
+* a simple CLI for interacting with the CosmosID that uses the core library;
 
 ## Basic installation
-The CLI with the core Python library may be installed using `pip3`.
-* simply run from console `sudo pip3 install metagen_cli`
+The CLI with the core Python library can be installed using `pip3`.
+* simply run from console `sudo pip3 install cosmosid_cli`
 
-# Using the Metagen CLI
+> Note: pip3 and setuptools should be upgraded to latest version. Please update those packages on you workstation regarding to your OS update process before setup cosmosid cli.
+> ```shell
+> E.g. for Ubuntu 14.04 perform following steps:
+> $ sudo apt-get update
+> $ sudo apt-get upgrade
+> $ sudo -H pip3 install -U pip setuptools 
+```
 
-The CosmosID Metagen CLI supports authentication via Metagen API Key.
-Your API key can be found on the [CosmosID Metagen profile page](https://app.cosmosid.com/settings).
-To automatically authenticate via Metagen API Key you should create credential file `~/.metagen` and store your API Key into it in the following format:
+# Using the Cosmosid CLI
+
+The CosmosID CLI supports authentication via CosmosID API Key.
+Your API key can be found on the [CosmosID profile page](https://app.cosmosid.com/settings).
+To automatically authenticate via CosmosID API Key you should create credential file `~/.cosmosid` and store your API Key into it in the following format:
 ```json
 {"api_key": "<your api key string>"}
 ```
-You can directly use your Metagen API Key, rather than storing it in a credential file. To use API Key authentication, pass your key as an argument to the `metagen` command:
+You can directly use your CosmosID API Key, rather than storing it in a credential file. To use API Key authentication, pass your key as an argument to the `cosmosid` command:
 ```shell
-metagen --api_key=YOUR_API_KEY <command>
+cosmosid --api_key=YOUR_API_KEY <command>
 ```
 
 ## Commands
-The Metagen CLI supports retrieving your CosmosID data and analysis and uploading your samples to CosmosID Metagen for analysis.
+The CosmosID CLI supports uploading metagenomics or amplicon samples to CosmosID cloud for analysis and retrieving analysis results.
+
 * files - for retrieving files
 * analysis - for retrieving analysis results for specified file
-* upload - for uploading samples into Metagen
+* upload - for uploading samples into CosmosID
 * reports - for analysis report retrieving
 
-> Note: you can get usage help for each command and arguments of Mmetagen CLI to simply runnig `metagen --help` or `metagen <command> --help`
+> Note: you can get usage help for each command and arguments of CosmosID CLI to simply runnig `cosmosid --help` or `cosmosid <command> --help`
 
 ### Retrieve Files
-To retrieve files (samples) stored in CosmosID simply run the `metagen` command with a `files` subcommand. For example:
+To retrieve files (samples) stored in CosmosID simply run the `cosmosid` command with a `files` subcommand. For example:
 ```shell
-#to get contents of your Metagen root folder
-metagen files
+#to get contents of your CosmosID root folder
+cosmosid files
 
 #to get contents of appropriate folder use its id as argument
-metagen files --parent <folder_id>
+cosmosid files --parent <folder_id>
 
 #to get ordered list simply use the ordering argument with field name with/without order direction
-metagen files --parent <folder_id> --order size --up
+cosmosid files --parent <folder_id> --order size --up
 ```
 ### Upload files
-The Metagen CLI supports uploading sample files into CosmosID for analysis. Metagen supports following file types:
+The CosmosId CLI supports uploading sample files into CosmosID for analysis. CosmosId supports following file types:
 *.fastq, .fasta, .fas, .fa, .seq, .fsa, .fq, .fna, .gz*
 
-> Note: you can get usage help for each command and arguments of Metagen CLI to simply runnig `metagen --help` or `metagen <command> --help`
+CosmosId supports following types of analysis:
+* Metagenomics
+* Amplicon - 16s (only 16S supported for now)
 
-To upload sample file to CosmosID run `metagen` command with `upload` subcommand.
+> Note: you can get usage help for each command and arguments of CosmosID CLI to simply runnig `cosmosid --help` or `cosmosid <command> --help`
+
+To upload sample file to CosmosID run `cosmosid` command with `upload` subcommand. By default samples will be uploaded into root folder. To upload sample into specific *existing* folder you must use id of the folder as parameter.
 ```shell
-#to upload one sample file
-metagen upload --file <path to file>
+#to upload one sample file for Metagenomics analysis
+cosmosid upload --file <path to file> --type metagenomics
 
-#to upload multiple sample files
-metagen upload -f <path to file-1> -f <path to file-2>
+#to upload sample file into specific folder for Amplicon 16s analysis
+cosmosid upload --file <path to file-1> --parent <folder id> --type amplicon-16s
 ```
 
-> Note: upload of a big file takes a some time, please be patient
+> Note: uploading of a big file takes time, please be patient
 
 Once file has been uploaded to CosmosID the analyzing process will automatically begin.
-You can check the result of analysis on the page [CosmosID Metagen Samples](https://app.cosmosid.com/samples)
+You can check the result of metagenomics analysis on the page [CosmosID CosmosId Samples](https://app.cosmosid.com/samples).  
+Amplicon analysis results available only from CosmosID CLI for now.
 
 ### Retrieving Analysis Results
-To retrieve analysis results for a specified file in CosmosID simply run `metagen` command with `analysis` subcommand. For example:
+To retrieve analysis results for a specified file in CosmosID simply run `cosmosid` command with `analysis` subcommand. For example:
 ```shell
 #to get list of analysis for a given file id
-metagen analysis --id <file ID>
+cosmosid analysis --id <file ID>
 
 #to get ordered list of analysis for a given file id simly use ordering argument with field name with/without order direction
-metagen analysis --id <file ID> --order created --up
+cosmosid analysis --id <file ID> --order created --up
 ```
 
-### Generate Analysis Report Archive
-The Metagen CLI supports retrieving analysis reports archives from CosmosID Metagen for a given `File ID` and saving the archive to a given file.
+> Note: There is no analysis results for Amplicon 16s sample. Use report generation instead of get list of analysis for Amplicon 16s.
 
-To retrieve an analysis report archive with CSV files run the `metagen` command with `reports` subcommand.
+### Generate Analysis Report Archive
+The CosmosId CLI supports retrieving analysis reports archives from CosmosID for a given `File ID` and saving the archive to a given file.
+
+To retrieve an analysis report archive with CSV files run the `cosmosid` command with `reports` subcommand.
 ```shell
-#to create analysis report archive and save it in current directory with name equivalent to file name in CosmosID Metagen
-metagen reports --id <file ID>
+#to create analysis report archive and save it in a current directory with a name equivalent to file name in CosmosID
+cosmosid reports --id <file ID>
 
 #to create analysis report archive and save it into given directory
-metagen reports --id <file ID> --dir ~/metagen/reports
+cosmosid reports --id <file ID> --dir ~/cosmosid/reports
 
 #to create analysis report archive and save it into given local file
-metagen reports --id <file ID> --output /tmp/analysis_report.zip
+cosmosid reports --id <file ID> --output /tmp/analysis_report.zip
 ```

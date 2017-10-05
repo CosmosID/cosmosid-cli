@@ -1,6 +1,6 @@
 
-class MetagenException(Exception):
-    """Default MetagenException. Base class for another Exceptions."""
+class CosmosidException(Exception):
+    """Default CosmosidException. Base class for another Exceptions."""
 
     def __init__(self, *args, **kwargs):
         """You may pass dict to Exception so error handler can render representation error description."""
@@ -14,7 +14,7 @@ class MetagenException(Exception):
         :dict_ - dict which contains name and message of exception
         :status_code - status code
         """
-        exception = MetagenException()
+        exception = CosmosidException()
         exception.name = dict_.get('error_code', '')
         exception.message = dict_.get('message', '')
         exception.status_code = status_code
@@ -22,21 +22,33 @@ class MetagenException(Exception):
         return exception
 
 
-class MethodNotSupported(MetagenException):
+class MethodNotSupported(CosmosidException):
     pass
 
 
-class PermissionDenied(MetagenException):
+class PermissionDenied(CosmosidException):
     pass
 
 
-class AuthenticationFailed(MetagenException):
+class StatusExeception(CosmosidException):
+    name = "NoStatus"
+    status_code = 406
+    message = "Wrong status of dataset."
+
+
+class AuthenticationFailed(CosmosidException):
     name = "NoAuth"
     status_code = 403
     message = "Authentication Failed. Wrong API Key."
 
 
-class ServerError(MetagenException):
+class NotEnoughCredits(CosmosidException):
+    name = "NoCredits"
+    status_code = 402
+    message = "Insufficient credits for upload."
+
+
+class ServerError(CosmosidException):
     pass
 
 
@@ -52,19 +64,19 @@ class UploadException(Exception):
     pass
 
 
-class ConnectionException(MetagenException):
+class ConnectionException(CosmosidException):
     pass
 
 
-class NotFound(MetagenException):
+class NotFound(CosmosidException):
     name = "NoAuth"
     status_code = 404
     message = "Object with given ID not found."
 
 
-class NotFoundException(MetagenException):
+class NotFoundException(CosmosidException):
     pass
 
 
-class FileExistsException(MetagenException):
+class FileExistsException(CosmosidException):
     pass

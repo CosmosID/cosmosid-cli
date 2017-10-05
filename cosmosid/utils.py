@@ -2,10 +2,10 @@
 import logging
 import os
 import math
-from metagen.helpers.exceptions import ValidationError
+from cosmosid.helpers.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
-cli_log = logging.getLogger("metagen.cli")
+cli_log = logging.getLogger("cosmosid.cli")
 
 
 def key_len(value, type_="ApiKey"):

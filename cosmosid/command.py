@@ -2,11 +2,17 @@
 import os
 import logging
 
-from cliff.command import Command
-from cliff.lister import Lister
 from operator import itemgetter
 from datetime import datetime as dt
-import metagen.utils as utils
+from cliff.command import Command
+from cliff.lister import Lister
+import cosmosid.utils as utils
+from cliff import _argparse
+
+
+class ChoicesAction(_argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, self.choices.get(values, self.default))
 
 
 class Files(Lister):
@@ -27,12 +33,13 @@ class Files(Lister):
         """get json with items and prepare for output"""
         folder_content = dict()
         parent = utils.key_len(parsed_args.parent)
-        folder_content = self.app.metagen.directory_list(parent)
+        folder_content = self.app.cosmosid.directory_list(parent)
         content_type_map = {
             '1': 'Folder',
-            '2': 'Sample',
+            '2': 'Metagenomics Sample',
             '3': 'MRSA Sample',
-            '4': 'Listeria Sample'
+            '4': 'Listeria Sample',
+            '5': 'Amplicon 16S Sample'
         }
         header = ['type', 'name', 'id', 'status', 'size', 'created']
         if folder_content:
@@ -98,7 +105,7 @@ class Files(Lister):
 
 
 class Upload(Command):
-    """Upload files to Metagen."""
+    """Upload files to cosmosid."""
 
     logger = logging.getLogger(__name__)
 
@@ -111,24 +118,45 @@ class Upload(Command):
                             type=str,
                             help='file(s) for upload \
                                   Supported file types: .fastq, .fasta, .fas, .fa, .seq, .fsa, .fq, .fna, .gz \
-                                  e.g. metagen upload -f /path/file1.fasta -f /path/file2.fn \
+                                  e.g. cosmosid upload -f /path/file1.fasta -f /path/file2.fn \
                                   '
                             )
+        parser.add_argument('--parent', '-p',
+                            action='store',
+                            required=False,
+                            type=str,
+                            help='cosmosid parent folder ID for upload'
+                            )
+
+        # choice = {'metagenomics': 2, 'amplicon': 5, 'mrsa': 3, 'listeria': 4}
+        choice = {'metagenomics': 2, 'amplicon-16s': 5}
+        parser.add_argument('--type', '-t',
+                            action=ChoicesAction,
+                            required=True,
+                            choices=choice,
+                            type=str,
+                            default=None,
+                            help='Type of analysis for a file'
+                            )
+
         # grp.add_argument('--dir', '-d',
         #                 type=str,
         #                 action='store',
-        #                 help='directory with files for upload from, e.g. metagen upload -d /path/dir_with_samples')
+        #                 help='directory with files for upload from, e.g. cosmosid upload -d /path/dir_with_samples')
+
         return parser
 
     def take_action(self, parsed_args):
         """Send files to analysis."""
+        parent_id = parsed_args.parent if parsed_args.parent else None
+        parent_id = utils.key_len(parent_id, "ID")
         if parsed_args.file:
             for file in parsed_args.file:
                 if not os.path.exists(file):
                     self.logger.error('Specified file does not exist: {}'.format(file))
                     continue
                 self.logger.info('File uploading is started: {}'.format(file))
-                file_id = self.app.metagen.upload_files(file)
+                file_id = self.app.cosmosid.upload_files(file, parsed_args.type, parent_id)
                 if not file_id:
                     return False
                 self.logger.info('File {} has been sent to analysis.'.format(file))
@@ -155,7 +183,7 @@ class Analysis(Lister):
         """get json with analysis for a file and prepare for output"""
         analysis_content = dict()
         ids = utils.key_len(parsed_args.id, "ID")
-        analysis_content = self.app.metagen.analysis_list(ids)
+        analysis_content = self.app.cosmosid.analysis_list(ids)
         header = ['id', 'database', 'strains', 'strains_filtered', 'status']
         if analysis_content:
             if not analysis_content['items']:
@@ -218,14 +246,14 @@ class Reports(Command):
                             action='store',
                             required=True,
                             type=str,
-                            help='ID of Metagen file.'
+                            help='ID of cosmosid file.'
                             )
         grp = parser.add_mutually_exclusive_group(required=False)
         grp.add_argument('--output', '-o',
                          action='store',
                          type=str,
                          help='output file name. Must have .zip extension. \
-                               Default: is equivalent to metagen file name.'
+                               Default: is equivalent to cosmosid file name.'
                          )
         grp.add_argument('--dir', '-d',
                          action='store',
@@ -240,8 +268,8 @@ class Reports(Command):
         ids = utils.key_len(parsed_args.id, "ID")
         output_file = parsed_args.output if parsed_args.output else None
         output_dir = parsed_args.dir if parsed_args.dir else None
-        self.logger.info('Processing CSV reports for file {} ...'.format(ids))
-        response = self.app.metagen.report(ids, output_file=output_file, output_dir=output_dir)
+        self.logger.info('Processing reports for file {} ...'.format(ids))
+        response = self.app.cosmosid.report(ids, output_file=output_file, output_dir=output_dir)
         if response:
             self.logger.info('\nReport has been saved to: {}'.format(response))
         else:

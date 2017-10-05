@@ -2,11 +2,11 @@
 import logging
 import requests
 import urllib.request
-import traceback
 import os
 from urllib.parse import urlparse
 from os.path import split, join, splitext, expanduser, normpath, isdir, isfile
-from metagen.helpers.exceptions import ValidationError, NotFoundException, AuthenticationFailed, FileExistsException, NotFound
+from cosmosid.helpers.exceptions import (ValidationError, NotFoundException, StatusExeception,
+                                         AuthenticationFailed, FileExistsException, NotFound)
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,9 @@ class Reports(object):
             request_url = request_url.format(file_id=self.file_id)
             results = requests.get(request_url, headers=self.header)
             if results.status_code == 403:
-                raise AuthenticationFailed('Authentication Failed. Wrong API Key.')
+                raise AuthenticationFailed('Authentication Failed. Wrong API Key')
+            if results.status_code == 406:
+                raise StatusExeception('File has a NON SUCCESS status')
             if results.status_code == 404:
                 raise NotFound('File with given ID does not exist: {}'.format(self.file_id))
             if requests.codes.ok:
@@ -41,6 +43,12 @@ class Reports(object):
             results.raise_for_status()
         except AuthenticationFailed as ae:
             self.logger.error('{}'.format(ae))
+            return {'url': None}
+        except StatusExeception as se:
+            self.logger.error('{}'.format(se))
+            return {'url': 1}
+        except NotFound as nf:
+            self.logger.error('{}'.format(nf))
             return {'url': None}
         except ValidationError as ve:
             self.logger.error('Validation error: {}'.format(ve))
@@ -74,6 +82,8 @@ class Reports(object):
             url = self.get_report_url()['url']
             if not url:
                 raise Exception('Empty report Url recieved')
+            if url == 1:
+                raise NotFoundException('Report can not be generated for file with NON SUCCESS status.')
             parsed_url = urlparse(url)
             _, file_name = split(parsed_url.path)
             if out_file:
@@ -93,13 +103,13 @@ class Reports(object):
             return ({'status': 1, 'saved_report': out_file})
         except AuthenticationFailed as ae:
             self.logger.error('{}'.format(ae))
-            return {'status': 0}
+            return {'status': 0, 'message': ae}
         except NotFoundException as nfe:
             self.logger.error('{}'.format(nfe))
-            return {'status': 0}
+            return {'status': 0, 'message': nfe}
         except FileExistsException as fe:
             self.logger.error('{}'.format(fe))
-            return {'status': 0}
+            return {'status': 0, 'message': fe}
         except Exception as ex:
             self.logger.error('Error occured during save report: {}'.format(ex))
-            return {'status': 0}
+            return {'status': 0, 'message': ex}

@@ -10,10 +10,11 @@ from boto3.s3.transfer import TransferConfig, ProgressCallbackInvoker
 from s3transfer.utils import OSUtils
 from botocore.exceptions import ClientError
 from boto3.exceptions import RetriesExceededError, S3UploadFailedError
-from metagen import utils
+from cosmosid import utils
+from cosmosid.api.files import Files
 
-from metagen.helpers.upload import CosmosIdTransferManager
-from metagen.helpers.exceptions import UploadException, AuthenticationFailed
+from cosmosid.helpers.upload import CosmosIdTransferManager
+from cosmosid.helpers.exceptions import UploadException, AuthenticationFailed, NotEnoughCredits, NotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -70,15 +71,44 @@ class CosmosIdS3Client(object):
         return cmp_up.json()
 
 
+class ProgressPercentage(object):
+    def __init__(self, filename):
+        self._filename = filename
+        self._size = float(os.path.getsize(filename))
+        self._seen_so_far = 0
+        self._lock = threading.Lock()
+
+    def __call__(self, bytes_amount):
+        # To simplify we'll assume this is hooked up
+        # to a single filename.
+        with self._lock:
+            self._seen_so_far += bytes_amount
+            percentage = (self._seen_so_far / self._size) * 100
+            logger.error("\r%s  %s / %s  (%.2f%%)" % (self._filename, self._seen_so_far, self._size, percentage))
+            sys.stdout.flush()
+
+
 def upload_file(**kwargs):
     """Upload manager."""
     filename = kwargs.pop('file')
+    parent_id = kwargs.pop('parent_id', None)
+    file_type = kwargs.pop('file_type', 2)
     client = CosmosIdS3Client(**kwargs)
     config = TransferConfig()
     osutil = OSUtils()
+    # Check if given parent folder exists
+    if parent_id:
+        fo = Files(**kwargs)
+        try:
+            res = fo.get_list(parent_id=parent_id)
+            if not res['status']:
+                raise NotFoundException("Parent folder for upload does not exists.")
+        except NotFoundException as nfex:
+            logger.error('NotFound: {}'.format(nfex))
+            return
     transfer_manager = CosmosIdTransferManager(client, config=config, osutil=osutil)
 
-    subscribers = None
+    subscribers = [ProgressCallbackInvoker(ProgressPercentage(filename))]
 
     _, file_name = os.path.split(filename)
     try:
@@ -86,14 +116,17 @@ def upload_file(**kwargs):
                                 json=dict(file_name=file_name),
                                 headers=client.header
                                 )
+        if response.status_code == 402:
+            raise NotEnoughCredits('Insufficient credits for upload.')
         if response.status_code == 403:
             raise AuthenticationFailed('Authentication Failed. Wrong API Key.')
         if response.status_code == requests.codes.ok:
             sources = response.json()
             future = transfer_manager.upload(
-                filename, sources['upload_source'], sources['upload_key'], None, subscribers)
+                filename, sources['upload_source'], sources['upload_key'], extra_args=None, subscribers=subscribers)
+
             s3path, _ = os.path.split(sources['upload_key'])
-            data = dict(path=s3path, size=str(os.stat(filename)[6]), name=file_name, parent='')
+            data = dict(path=s3path, size=str(os.stat(filename)[6]), name=file_name, parent=parent_id, type=file_type)
         else:
             logger.error("File upload inititalisation Failed. Response code: {}".format(response.status_code))
             raise UploadException("File upload inititalisation Failed. Response code: {}".format(response.status_code))
@@ -117,6 +150,9 @@ def upload_file(**kwargs):
         raise S3UploadFailedError(
             "Failed to upload %s to %s: %s" % (
                 filename, '/'.join([sources['upload_source'], sources['upload_key']]), e))
+        return False
+    except NotEnoughCredits as ic:
+        logger.error('{}'.format(ic))
         return False
     except AuthenticationFailed as ae:
         logger.error('{}'.format(ae))

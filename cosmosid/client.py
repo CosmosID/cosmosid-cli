@@ -1,18 +1,18 @@
 import sys
 import logging
 
-from metagen.helpers.auth import ApiKeyAuth
-from metagen.helpers.exceptions import ValidationError, MetagenException, UploadException, NotFoundException
-import metagen.utils as utils
-from metagen.api.files import Files
-import metagen.api.upload as upload
-from metagen.api.analysis import Analysis
-from metagen.api.reports import Reports
+from cosmosid.helpers.auth import ApiKeyAuth
+from cosmosid.helpers.exceptions import ValidationError, CosmosidException, UploadException, NotFoundException
+import cosmosid.utils as utils
+from cosmosid.api.files import Files
+import cosmosid.api.upload as upload
+from cosmosid.api.analysis import Analysis
+from cosmosid.api.reports import Reports
 
 
-class MetagenApi(object):
+class CosmosidApi(object):
     """
-    Client is a python client on top of the CosmosID Metagen interface.
+    Client is a python client on top of the CosmosID interface.
     """
     logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class MetagenApi(object):
             if api_key is None:
                 raise ValidationError("Api Key is empty")
         except (KeyError, ValueError):
-            self.logger.error("Cann't get Metagen Api Key")
+            self.logger.error("Cann't get Cosmosid Api Key")
             sys.exit(1)
         return api_key
 
@@ -57,18 +57,23 @@ class MetagenApi(object):
                 else:
                     raise NotFoundException(res['message'])
             else:
-                raise MetagenException('Response from service is empty for directory {}'.format(parent))
+                raise CosmosidException('Response from service is empty for directory {}'.format(parent))
         except NotFoundException as nfex:
             self.logger.error('NotFound: {}'.format(nfex))
-        except MetagenException as mex:
+        except CosmosidException as mex:
             self.logger.error('Get directory list exception: {}'.format(mex))
         except Exception:
             self.logger.error("failed to get listing of directory {}".format(parent))
 
-    def upload_files(self, file):
+    def upload_files(self, file, file_type, parent_id=None):
         """Upload single file."""
         try:
-            upload_res = upload.upload_file(file=file, base_url=self.base_url, api_key=self.api_key)
+            upload_res = upload.upload_file(file=file,
+                                            parent_id=parent_id,
+                                            file_type=file_type,
+                                            base_url=self.base_url,
+                                            api_key=self.api_key
+                                            )
             if upload_res:
                 return upload_res['created'][0]
             else:
@@ -87,10 +92,10 @@ class MetagenApi(object):
                 else:
                     raise NotFoundException(analysis_list['message'])
             else:
-                raise MetagenException('Error uccurred on get list of analysis for a File: {}'.format(file))
+                raise CosmosidException('Error uccurred on get list of analysis for a File: {}'.format(file))
         except NotFoundException as nfex:
             self.logger.error('NotFound: {}'.format(nfex))
-        except MetagenException as mex:
+        except CosmosidException as mex:
             self.logger.error('Get analysis list exception: {}'.format(mex))
         except Exception as ex:
             self.logger.error('Client exception occured: {}'.format(ex))
@@ -106,6 +111,6 @@ class MetagenApi(object):
             if results['status']:
                 return results['saved_report']
             else:
-                raise MetagenException('Error uccurred on Save Report for {}'.format(file_id))
-        except MetagenException as mex:
+                raise CosmosidException('{} File id: {}'.format(results['message'], file_id))
+        except CosmosidException as mex:
             self.logger.error('Save report error: {}'.format(mex))
