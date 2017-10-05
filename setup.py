@@ -9,15 +9,15 @@
 
 from setuptools import setup, find_packages
 
-__version__ = '0.0.5'
+__version__ = '0.0.6'
 
 setup(
     name='cosmosid_cli',
     version=__version__,
     packages=find_packages(exclude=['contrib', 'docs', '*tests*']),
-    install_requires=['requests>=2.17', 'cliff>=2.8.0',
-                      'six>=1.10.0', 'boto3>=1.4.2',
-                      's3transfer>=0.1.10', 'tzlocal>=1.4'],
+    install_requires=['requests=2.17', 'cliff=2.8.0',
+                      'six=1.10.0', 'boto3=1.4.2',
+                      's3transfer=0.1.10', 'tzlocal=1.4'],
     include_package_data=True,
     dependency_links=[],
     author='CosmosID',
