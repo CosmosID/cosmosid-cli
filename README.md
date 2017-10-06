@@ -22,7 +22,7 @@ This package provides:
 
 ## Basic installation
 The CLI with the core Python library can be installed using `pip3`.
-* simply run from console `sudo pip3 install cosmosid-cli`
+* simply run from console `sudo pip3 install cosmosid_cli`
 
 > Note: pip3 and setuptools should be upgraded to latest version. Please update those packages on you workstation regarding to your OS update process before setup cosmosid cli.
 > ```shell
@@ -31,6 +31,12 @@ The CLI with the core Python library can be installed using `pip3`.
 > $ sudo apt-get upgrade
 > $ sudo -H pip3 install -U pip setuptools 
 >```
+> If you had have previously installed CosmosID CLI just upgrade CLI  
+> to latest version.
+> ```shell
+> $ sudo -H pip3 install --upgrade cosmosid_cli
+> ```
+
 
 # Using the Cosmosid CLI
 

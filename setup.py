@@ -9,14 +9,16 @@
 
 from setuptools import setup, find_packages
 
-__version__ = '0.0.7'
+__version__ = '0.0.8'
 
 setup(
-    name='cosmosid-cli',
+    name='cosmosid_cli',
     version=__version__,
-    description='API Client and Pyhthon 3 libraries for CosmosID',
+    license='MIT',
+    description='Command line client and Python 3 libraries for CosmosID API',
     long_description=open('README.rst').read(),
     packages=find_packages(exclude=['contrib', 'docs', '*tests*']),
+    python_requires='~=3.2',
     install_requires=['requests==2.17', 'cliff==2.8.0',
                       'six', 'boto3==1.4.2',
                       's3transfer==0.1.10', 'tzlocal==1.4'],
