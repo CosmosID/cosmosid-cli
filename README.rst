@@ -41,11 +41,6 @@ simply run from console ``sudo pip3 install cosmosid_cli``
         $ sudo apt-get update
         $ sudo apt-get upgrade
         $ sudo -H pip3 install -U pip setuptools 
-    
-    If you had have previously installed CosmosID CLI just upgrade CLI  
-    to latest version.
-    .. code:: shell
-        $ sudo -H pip3 install --upgrade cosmosid_cli
 
 Using the CosmosId CLI
 =====================
@@ -71,18 +66,63 @@ argument to the ``cosmosid`` command:
 Commands
 --------
 
-The CosmosID CLI supports uploading metagenomics or amplicon samples to 
-CosmosID cloud for analysis and retrieving analysis results. \* files - for
-retrieving files \* analysis - for retrieving analysis results for
-specified file \* upload - for uploading samples into CosmosId \* reports
-- for analysis report retrieving
+There are several types of commands supported by the CosmosID CLI \*1. Commands for retrieving data to terminal (output) from CosmosID cloud - files, analysis.\*2. Commands for uploading metagenomics or amplicon samples to 
+CosmosID cloud for analysis - uploads.\*3. Commands for retrieving the reports archive from CosmosID cloud - reports
 
-    Note: you can get usage help for each command and arguments of
-    Mcosmosid CLI to simply runnig ``cosmosid --help`` or
-    ``cosmosid <command> --help``
+    Note: Each command has options. To get usage information for each CosmosID CLI 
+    command, the user can simply run ``cosmosid <command> --help``
 
 Retrieve Files
 ~~~~~~~~~~~~~~
+
+The commands for retrieving data have options for output format. The user can get data into the terminal (or another output) in a different format - csv, json, table, value, yaml (table is default), and specify the column(s) to show. In additional there are CSV format options, user can quote
+or unquote or partly quote output values - all, minimal, none, non-numeric (by default only non-numeric values are quoted)
+
+Example of output for the ``--help`` options for the ``<files>`` command:
+.. code:: shell
+    $ cosmosid files --help
+    usage: cosmosid files [-h] [-f {csv,json,table,value,yaml}] [-c COLUMN]
+                      [--noindent] [--max-width <integer>] [--fit-width]
+                      [--print-empty] [--quote {all,minimal,none,nonnumeric}]
+                      [--parent PARENT]
+                      [--order {type,name,id,status,size,created}] [--up]
+
+    Show files in a given directory.
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      --parent PARENT, -p PARENT
+                            ID of the parent directory. Default: Root
+      --order {type,name,id,status,size,created}, -o {type,name,id,status,size,created}
+                            field for ordering
+      --up                  order direction
+
+    output formatters:
+      output formatter options
+
+      -f {csv,json,table,value,yaml}, --format {csv,json,table,value,yaml}
+                        the output format, defaults to table
+      -c COLUMN, --column COLUMN
+                        specify the column(s) to include, can be repeated
+
+    json formatter:
+      --noindent            whether to disable indenting the JSON
+
+    table formatter:
+      --max-width <integer>
+                            Maximum display width, <1 to disable. You can also use
+                            the CLIFF_MAX_TERM_WIDTH environment variable, but the
+                            parameter takes precedence.
+
+      --fit-width       Fit the table to the display width. Implied if --max-
+                            width greater than 0. Set the environment variable
+                            CLIFF_FIT_WIDTH=1 to always enable
+
+     --print-empty     Print empty table if there is no data to show.
+
+    CSV Formatter:
+      --quote {all,minimal,none,nonnumeric} when to include quotes, defaults to nonnumeric
+
 
 To retrieve files (samples) stored in CosmosID simply run the
 ``cosmosid`` command with a ``files`` subcommand. For example:
