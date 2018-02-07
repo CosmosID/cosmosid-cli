@@ -41,6 +41,11 @@ simply run from console ``sudo pip3 install cosmosid_cli``
         $ sudo apt-get update
         $ sudo apt-get upgrade
         $ sudo -H pip3 install -U pip setuptools 
+    
+    If you had have previously installed CosmosID CLI just upgrade CLI  
+    to latest version.
+    .. code:: shell
+        $ sudo -H pip3 install --upgrade cosmosid_cli
 
 Using the CosmosId CLI
 =====================

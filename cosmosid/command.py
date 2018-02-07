@@ -1,12 +1,14 @@
 
 import os
 import logging
+import calendar
+import time
+import cosmosid.utils as utils
 
 from operator import itemgetter
 from datetime import datetime as dt
 from cliff.command import Command
 from cliff.lister import Lister
-import cosmosid.utils as utils
 from cliff import _argparse
 
 
@@ -39,7 +41,8 @@ class Files(Lister):
             '2': 'Metagenomics Sample',
             '3': 'MRSA Sample',
             '4': 'Listeria Sample',
-            '5': 'Amplicon 16S Sample'
+            '5': 'Amplicon 16S Sample',
+            '6': 'Amplicon ITS Sample'
         }
         header = ['type', 'name', 'id', 'status', 'size', 'created']
         if folder_content:
@@ -51,7 +54,10 @@ class Files(Lister):
             raise Exception("Exception uccured.")
 
         def _set_date(inp):
-            return dt.fromtimestamp((inp[1]/1000)).strftime('%Y-%m-%d %H:%M:%S')
+            utc_time_tuple = time.strptime(inp[1], "%Y-%m-%dT%H:%M:%S.%f")
+            local_time = calendar.timegm(utc_time_tuple)
+            # time.ctime(local_time)
+            return dt.fromtimestamp(local_time).strftime('%Y-%m-%d %H:%M:%S')
 
         def _del_none(inp):
             out = [inp[1]]
@@ -82,7 +88,7 @@ class Files(Lister):
             'name': ['name', 'str', _del_none],
             'status': ['status', 'str', _del_none],
             'size': ['size', 'int', _del_none],
-            'created': ['created', 'str', _del_none]
+            'created': ['created', 'str', _set_date]
         }
 
         """we need just items for output"""
@@ -129,7 +135,7 @@ class Upload(Command):
                             )
 
         # choice = {'metagenomics': 2, 'amplicon': 5, 'mrsa': 3, 'listeria': 4}
-        choice = {'metagenomics': 2, 'amplicon-16s': 5}
+        choice = {'metagenomics': 2, 'amplicon-16s': 5, 'amplicon-its': 6}
         parser.add_argument('--type', '-t',
                             action=ChoicesAction,
                             required=True,
@@ -184,19 +190,22 @@ class Analysis(Lister):
         analysis_content = dict()
         ids = utils.key_len(parsed_args.id, "ID")
         analysis_content = self.app.cosmosid.analysis_list(ids)
-        header = ['id', 'database', 'strains', 'strains_filtered', 'status']
+        header = ['id', 'database', 'database_version', 'strains', 'strains_filtered', 'status']
         if analysis_content:
             if not analysis_content['items']:
                 self.logger.info('\nThere are no analysis for file {} (id: {})'.
                                  format(analysis_content['file_metadata']['name'], ids)
                                  )
-                for_output = [[' ', ' ', ' ', ' ', ' ']]
+                for_output = [[' ', ' ', ' ', ' ', ' ', ' ']]
                 return (header, for_output)
         else:
             raise Exception("Exception uccured.")
 
         def _set_date(inp):
-            return dt.fromtimestamp((inp/1000)).strftime('%Y-%m-%d %H:%M:%S')
+            utc_time_tuple = time.strptime(inp, "%Y-%m-%dT%H:%M:%S.%f")
+            local_time = calendar.timegm(utc_time_tuple)
+            # time.ctime(local_time)
+            return dt.fromtimestamp(local_time).strftime('%Y-%m-%d %H:%M:%S')
 
         def _del_none(inp):
             out = inp[1]
@@ -205,14 +214,21 @@ class Analysis(Lister):
             return out
 
         def _convert(inp):
+            version = inp['database_version']
+            # date_run = inp['created'] if inp['created'] else analysis_content['file_metadata']['created']
+            # date_run = _set_date(date_run)
+            db_version = "{}".format(version)
             for item in inp.items():
-                if item[0] in field_maps:
-                    inp[item[0]] = field_maps[item[0]][2](item)
+                for k, v in field_maps.items():
+                    if item[0] == v[0]:
+                        inp[item[0]] = field_maps[k][2](item) if item[0] != 'database_version' else db_version
+                        break
             return inp
 
         field_maps = {
             'id': ['id', 'str', _del_none],
-            'database': ['database', 'str', _del_none],
+            'database': ['description', 'str', _del_none],
+            'database_version': ['database_version', 'str', _del_none],
             'status': ['status', 'str', _del_none],
             'strains': ['strains', 'int', _del_none],
             'strains_filtered': ['strains_filtered', 'int', _del_none]
@@ -228,7 +244,7 @@ class Analysis(Lister):
                                     key=itemgetter(field_maps[parsed_args.order.lower()][0]),
                                     reverse=(not parsed_args.up)
                                     )
-        create_date = analysis_content['file_metadata']['created']
+        create_date = _set_date(analysis_content['file_metadata']['created'])
         for_output = [[item[field_maps[field][0]] for field in header] for item in items_data]
         self.logger.info('\nAnalysis list for {} (id: {}). Creation date: {}'
                          .format(analysis_content['file_metadata']['name'], ids, create_date))

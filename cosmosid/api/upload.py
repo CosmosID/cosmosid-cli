@@ -112,7 +112,7 @@ def upload_file(**kwargs):
 
     _, file_name = os.path.split(filename)
     try:
-        response = requests.get(client.base_url + '/api/metagenid/v1/files/upload_init',
+        response = requests.put(client.base_url + '/api/metagenid/v1/files/upload_init',
                                 json=dict(file_name=file_name),
                                 headers=client.header
                                 )
