@@ -1,0 +1,80 @@
+---
+version: 1
+disable_existing_loggers: False
+formatters:
+  simple:
+    format: "%(message)s"
+  fancy:
+    format: "%(asctime)s|%(levelname)s|%(module)s.%(funcName)s:%(lineno)-2s|%(message)s"
+  threads:
+    format: "[%(asctime)s] [%(levelname)s] [%(module)s.%(funcName)s:%(lineno)-2s] [%(name)s] [%(threadName)s %(relativeCreated)d] %(message)s"
+
+handlers:
+  screen_debug:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: threads
+    stream: ext://sys.stdout
+
+  screen_info:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: simple
+    stream: ext://sys.stdout
+
+  logfile:
+    class: concurrent_log_handler.ConcurrentRotatingFileHandler
+    level: DEBUG
+    formatter: threads
+    filename: "cli.log"
+    maxBytes: 102400
+    backupCount: 1
+    encoding: utf8
+    mode: 'a+'
+    delay: True
+
+loggers:
+  cliff:
+    level: NOTSET
+    handlers: [logfile,]
+    propagate: no
+  stevedore:
+    level: NOTSET
+    handlers: [logfile,]
+    propagate: no
+  urllib3:
+    level: NOTSET
+    handlers: [logfile, screen_info]
+    propagate: no
+  cli:
+    level: NOTSET
+    handlers: [logfile,]
+    propagate: no
+  cosmosid:
+    level: NOTSET
+    handlers: [screen_info, logfile]
+    propagate: no
+  s3transfer:
+    level: NOTSET
+    handlers: [logfile,]
+    propagate: no
+  boto:
+    level: NOTSET
+    handlers: [logfile,]
+    propagate: no
+  boto3:
+    level: NOTSET
+    handlers: [logfile,]
+    propagate: no
+  botocore:
+    level: NOTSET
+    handlers: [screen_info, logfile]
+    propagate: no
+  __main__:
+    level: NOTSET
+    handlers: [logfile, screen_info]
+    propagate: no
+
+root:
+  level: NOTSET
+  handlers: [screen_info, logfile]

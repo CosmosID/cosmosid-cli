@@ -1,9 +1,14 @@
+"""Exceptions."""
+
 
 class CosmosidException(Exception):
     """Default CosmosidException. Base class for another Exceptions."""
 
     def __init__(self, *args, **kwargs):
-        """You may pass dict to Exception so error handler can render representation error description."""
+        """
+        You may pass dict to Exception so error handler can render
+        representation error description.
+        """
         self.exception_data = kwargs
 
     @staticmethod

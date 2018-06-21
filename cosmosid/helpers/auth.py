@@ -6,7 +6,12 @@ import cosmosid.utils as utils
 
 
 class ApiKeyAuth(object):
+    """Automatic authentication.
 
+    Credential file ~/.cosmosid with the API Key should be created and
+    accessable. File format:
+        {"api_key": "<your api key string>"}
+    """
     logger = logging.getLogger(__name__)
 
     def __init__(self):
@@ -23,16 +28,18 @@ class ApiKeyAuth(object):
         api_key_file = os.path.expanduser('~/.cosmosid')
         api_key = {}
         if not os.path.exists(api_key_file):
-            self.logger.error('Credentials file {} does not exist'
-                              .format(utils.collapse_path(api_key_file)))
+            self.logger.error('Credentials file %s does not exist',
+                              utils.collapse_path(api_key_file))
             return None
         try:
-            with open(api_key_file, mode='r') as f:
-                api_key = json.load(f)
+            with open(api_key_file, mode='r') as api_key_file:
+                api_key = json.load(api_key_file)
                 if 'api_key' not in api_key:
-                    self.logger.error('Credentials file {} does not contains api_key'
-                                      .format(utils.collapse_path(api_key_file)))
+                    self.logger.error('Credentials file %s does not contains '
+                                      'api_key',
+                                      utils.collapse_path(api_key_file))
                     return None
                 return api_key['api_key']
         except Exception:
-            self.logger.error("{} credentials file is corrupted".format(utils.collapse_path(api_key_file)))
+            self.logger.error("%s credentials file is ''corrupted",
+                              utils.collapse_path(api_key_file))

@@ -56,7 +56,7 @@ cosmosid --api_key=YOUR_API_KEY <command>
 ## Commands
 
 There are several types of commands supported by the CosmosID CLI
-1. Commands for retrieving data to terminal (output) from CosmosID cloud - files, analysis.
+1. Commands for retrieving data to terminal (output) from CosmosID cloud - files, runs, analysis.
 2. Commands for uploading metagenomics or amplicon samples to 
    CosmosID cloud for analysis - uploads.
 3. Commands for retrieving the reports archive from CosmosID cloud - reports
@@ -124,6 +124,13 @@ cosmosid files --parent <folder_id>
 #to get ordered list simply use the ordering argument with field name with/without order direction
 cosmosid files --parent <folder_id> --order size --up
 ```
+### Retrieve Sample Runs
+An each file (sample) stored in CosmosID has one or more Sample Run(s) associated with it. 
+To retrieve sample run(s) associated with a file simply run the `cosmosid` command with `runs` subcommand. For example:
+```shell
+#to get runs associated with a speciffic file (sample)
+cosmosid runs --id <file_id>
+```    
 ### Upload files
 The CosmosID CLI supports uploading sample files into CosmosID for analysis. CosmosID supports the following file types:
 *.fastq, .fasta, .fas, .fa, .seq, .fsa, .fq, .fna, .gz*
@@ -151,30 +158,39 @@ Amplicon analysis results available only from CosmosID CLI for now.
 
 ### Retrieving Analysis Results
 
-To retrieve analysis results for a specified file in CosmosID simply run `cosmosid` command with `analysis` subcommand. For example:
+Analysis results can be retrieved from CosmosID by useing run id or file id. The latest run analysis results will be retrieved when file id used.  
+To retrieve analysis results for a specified run in CosmosID simply run `cosmosid` command with `analysis` subcommand. File  For example:
 ```shell
-#to get list of analysis for a given file id
+#to get list of analysis for the latest run of file
 cosmosid analysis --id <file ID>
 
-#to get ordered list of analysis for a given file id simly use ordering  
-argument with field name with/without order direction
+#to get list of analysis for a given run id
+cosmosid analysis --run_id <run ID>
+
+#to get ordered list of analysis for a given file id simply use ordering argument with field name with/without order direction
 cosmosid analysis --id <file ID> --order created --up
 ```
 
 > Note: There is no analysis results for Amplicon 16S and Amplicon ITS sample. Use report generation instead of getting list of analysis for Amplicon 16S and Amplicon ITS.
 
 ### Generate Analysis Report Archive
-The CosmosID CLI supports retrieving the archive of analysis reports from CosmosID for a given `File ID` and saving the archive to a given file.
+The CosmosID CLI supports retrieving the archive of analysis reports from CosmosID for a given `File ID` with a given `Run ID` and saving the archive to a given file.
 
 To retrieve an analysis report archive with TSV files run the `cosmosid` command with `reports` subcommand.
 ```shell
-#to create analysis report archive and save it in a current directory with  
-a name equivalent to file name in CosmosID
+# to create analysis report archive for the latest run of sample and save it in
+# a current directory with a name equivalent to file name in CosmosID
 cosmosid reports --id <file ID>
 
-#to create analysis report archive and save it into given directory
-cosmosid reports --id <file ID> --dir ~/cosmosid/reports
+# to create analysis report archive for the given run of sample and save it in
+# a current directory with a name equivalent to file name in CosmosID
+cosmosid reports --id <file ID> --run_id <run ID>
 
-#to create analysis report archive and save it into a given local file
+# to create analysis report archive for the given run of sample and save it 
+# in a given directory
+cosmosid reports --id <file ID> --run_id <run ID> --dir ~/cosmosid/reports
+
+# to create analysis report archive for the given run of sample and save it 
+# into a given local file
 cosmosid reports --id <file ID> --output /tmp/analysis_report.zip
 ```

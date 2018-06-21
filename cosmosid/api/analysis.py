@@ -1,63 +1,92 @@
 """Representation of Analysis."""
-import requests
-from base64 import b64encode
-from cosmosid.helpers.exceptions import AuthenticationFailed, NotFoundException, CosmosidException
-from cosmosid.api.files import Files
 import logging
 
-logger = logging.getLogger(__name__)
-content_type_map = {'1': 'Folder',
-                    '2': 'Metagenomics Sample',
-                    '3': 'MRSA Sample',
-                    '4': 'Listeria Sample',
-                    '5': 'Amplicon 16S Sample'
-                    }
-allowed_content_type = ['2', '3', '4']
+import requests
+from cosmosid.api.files import Runs
+from cosmosid.helpers.exceptions import (AuthenticationFailed,
+                                         CosmosidException,
+                                         NotFoundException)
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Analysis(object):
-    _resource_path = '/api/metagenid/v1/files/{file_id}/analysis'
+    """Runs analysis interface."""
+    __resource_path = '/api/metagenid/v1/runs/{run_id}/analysis'
 
     def __init__(self, base_url=None, api_key=None):
         self.base_url = base_url
-        self.logger = logger
+        self.logger = LOGGER
         self.header = {'X-Api-Key': api_key}
-        self.request_url = "{}{}".format(self.base_url, self.__class__._resource_path)
+        self.request_url = "{}{}".format(self.base_url, self.__resource_path)
+        self.runs = Runs(base_url=self.base_url,
+                         api_key=self.header['X-Api-Key'])
 
-    def get_list(self, file_id=None):
-        request_url = self.request_url.format(file_id=file_id)
-        fo = Files(base_url=self.base_url, api_key=self.header['X-Api-Key'])
-        data = {}
-        resut_data = {}
+    def __is_runid_in_file(self, run_id, file_id):
+        """Get given run meta and check is the run in sample."""
+        single_run = self.runs.get_single_run(run_id)
+        if single_run:
+            if single_run['status']:
+                if single_run['file']['id'] == file_id:
+                    return True
+        return False
+
+    def __get_analysis_by_file_id(self, file_id):
+        last_run = self.runs.get_last_run_for_file(file_id)
+        result_data = None
+        if last_run:
+            result_data = self.__get_analysis_by_run_id(last_run['id'])
+        return result_data
+
+    def __get_analysis_by_run_id(self, run_id):
+        request_url = self.request_url.format(run_id=run_id)
         try:
-            file_data = fo.get_file(file_id=file_id)
-            if file_data:
-                if not file_data['status']:
-                    raise NotFoundException(file_data['message'])
-            else:
-                raise CosmosidException('Response from service is empty for file id {}'.format(file_id))
-            if str(file_data['content_type']) not in allowed_content_type:
-                content_type = content_type_map.get(str(file_data['content_type']), "Unknown")
-                raise CosmosidException('Getting analysis list for {} is not possible'.format(content_type))
-            results = requests.get(request_url, headers=self.header, json=data)
+            single_run_meta = self.runs.get_single_run(run_id)
+            if not single_run_meta:
+                raise CosmosidException('Response from service is empty for '
+                                        'run id %s' % run_id)
+            if not single_run_meta['status']:
+                raise NotFoundException(single_run_meta['message'])
+
+            results = requests.get(request_url, headers=self.header)
             if results.status_code == 403:
-                raise AuthenticationFailed('Authentication Failed. Wrong API Key.')
+                raise AuthenticationFailed('Authentication Failed. '
+                                           'Wrong API Key.')
             if results.status_code == 404:
-                resut_data = results.json()
-                resut_data.update({'status': 0})
-                return resut_data
+                result_data = results.json()
+                result_data.update({'status': 0})
+                result_data.update({'run_meta': single_run_meta})
+                return result_data
             if requests.codes.ok:
-                resut_data = results.json()
-                resut_data.update({'status': 1})
-                return resut_data
+                result_data = results.json()
+                result_data.update({'status': 1})
+                result_data.update({'run_meta': single_run_meta})
+                return result_data
             results.raise_for_status()
-        except AuthenticationFailed as ae:
-            self.logger.error('{}'.format(ae))
-        except NotFoundException as nfex:
-            self.logger.error('NotFound: {}'.format(nfex))
-        except CosmosidException as mex:
-            self.logger.error('Get File data exception: {}'.format(mex))
-        except requests.exceptions.RequestException as er:
+        except AuthenticationFailed:
+            self.logger.error('Authentication Failed')
+        except NotFoundException:
+            self.logger.error('Not Found')
+        except CosmosidException:
+            self.logger.error('Got Analysis data exception.')
+        except requests.exceptions.RequestException:
+            self.logger.debug('Debug', exc_info=True)
             self.logger.error('Error occured during request')
-            self.logger.error('Response Status Code: {}'.format(results.status_code))
-            self.logger.debug('Response is: {content}'.format(content=er.response.content))
+            self.logger.error('Response Status Code: %s', results.status_code)
+
+    def get_list(self, file_id=None, run_id=None):
+        """Get analysis data.
+
+        cli analysis --id ID
+        """
+        if file_id and run_id:
+            if self.__is_runid_in_file(run_id, file_id):
+                return self.__get_analysis_by_run_id(run_id)
+            msg = 'File %s does not contain Run %s' % (self.file_id,
+                                                       self.run_id)
+            return {'status': 0,
+                    'message': msg}
+        elif run_id and not file_id:
+            return self.__get_analysis_by_run_id(run_id)
+        elif file_id and not run_id:
+            return self.__get_analysis_by_file_id(file_id)
