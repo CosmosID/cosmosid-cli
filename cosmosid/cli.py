@@ -44,6 +44,7 @@ from cliff.complete import CompleteCommand
 from cliff.help import HelpAction, HelpCommand
 from cosmosid.client import CosmosidApi
 
+VERSION = '0.7.0'
 
 class CosmosidApp(App):
     """Command line interface based on openstack/cliff."""
@@ -51,7 +52,7 @@ class CosmosidApp(App):
     def __init__(self):
         super(CosmosidApp, self).__init__(
             description="""Client for interacting with the CosmosID""",
-            version='0.3.0',
+            version=VERSION,
             command_manager=CommandManager('cosmosid'),
             deferred_help=True)
         self.cosmosid = None

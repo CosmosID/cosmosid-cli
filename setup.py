@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 ``CosmosID``
 ------------
@@ -6,12 +5,15 @@
 ``cosmosid`` provides a command line client and Python library for CosmosID
 
 """
-
-import sys
-
 from setuptools import setup, find_packages
 
-__version__ = '0.3.0'
+__version__ = '0.7.0'
+
+def _get_requirements():
+    with open('requirements.txt') as _file:
+        requirements = _file.read().splitlines()
+    requirements.append('pywin32==223;platform_system=="Windows"')
+    return requirements
 
 setup(
     name='cosmosid_cli',
@@ -20,12 +22,11 @@ setup(
     description='Command line client and Python 3 libraries for CosmosID API',
     long_description=open('README.rst').read(),
     packages=find_packages(exclude=['contrib', 'docs', '*tests*']),
-    python_requires='~=3.5',
-    install_requires=['requests>=2.17', 'cliff==2.8.0', 'PyYAML==3.12',
-                      'six', 'boto3>=1.4.2', 'concurrent-log-handler==0.9.9',
-                      's3transfer>=0.1.10', 'tzlocal==1.4'] + \
-                     ['pywin32==223'] if sys.platform.startswith("win") else [],
-    include_package_data=True,
+    python_requires='>=3.5',
+    install_requires=_get_requirements(),
+    package_data={
+        'cosmosid': ['logger_config.yaml', ],
+    },
     dependency_links=[],
     author='CosmosID',
     author_email='support@cosmosid.com',
