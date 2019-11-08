@@ -132,8 +132,9 @@ To retrieve sample run(s) associated with a file simply run the `cosmosid` comma
 cosmosid runs --id <file_id>
 ```    
 ### Upload files
-The CosmosID CLI supports uploading sample files into CosmosID for analysis. CosmosID supports the following file types:
-*.fastq, .fasta, .fas, .fa, .seq, .fsa, .fq, .fna, .gz*
+The CosmosID CLI supports uploading sample files into CosmosID for analysis.
+CosmosID supports the following file formats and extension names:
+.fasta, .fna, .fasta.gz, .fastq, .fq, .fastq.gz, bam, bam.gz, sra, sra.gz. (SRA files can be uploaded without extension)
 
 CosmosID supports the following types of analysis:
 * Metagenomics
@@ -142,6 +143,11 @@ CosmosID supports the following types of analysis:
 > Note: you can get usage help for each command and arguments of CosmosID CLI by simply runnig `cosmosid --help` or `cosmosid <command> --help`
 
 To upload sample file to CosmosID run `cosmosid` command with `upload` subcommand. By default samples will be uploaded into root folder. To upload sample into specific *existing* folder you must use id of the folder as parameter.
+The CosmosID CLI supports uploading multiple Single-Read and Paired-End samples. For Paired-End samples, the CLI automatically parse and merge samples in pairs if the samples follow the naming conventions like: xxx_R1.fastq and xxx_R2.fastq OR xxx_R1_001.fastq and xxx_R2_001.fastq. Note: Paired-End samples require "fastq" format
+
+Running example:
+
+cosmosid upload --type metagonomics -f /pathtofile/test1_R1.fastq -f /pathtofile/test1_R2.fastq -f  /pathtofile/test2.fasta
 ```shell
 #to upload one sample file for Metagenomics analysis
 cosmosid upload --file <path to file> --type metagenomics

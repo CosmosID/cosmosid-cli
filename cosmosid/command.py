@@ -1,10 +1,12 @@
 
 import calendar
 import logging
+import re
 import os
 import time
 from datetime import datetime as dt
 from operator import itemgetter
+from pathlib import Path
 
 from cliff import _argparse
 from cliff.command import Command
@@ -124,6 +126,20 @@ class Files(Lister):
 class Upload(Command):
     """Upload files to cosmosid."""
 
+    allowed_extensions = ['fasta', 'fna', 'fasta.gz', 'fastq', 'fq', 'fastq.gz', 'bam', 'bam.gz', 'sra', 'sra,gz']
+
+    @staticmethod
+    def get_basename(full_name):
+        path = Path(full_name)
+        fname = path.name
+        ext = ''.join(path.suffixes)
+        base_name = fname.replace(ext, '')
+        regex = r"^(.+?)(_R[12]|_R[12]_001|_L\d\d\d_R[12]|_L\d\d\d_R[12]_001|)((?:\.\w+){,2})$"
+        res = re.match(regex, fname)
+        if res:
+            return res.group(1), ext[1:]
+        return base_name, ext[1:]
+
     def get_parser(self, prog_name):
         parser = super(Upload, self).get_parser(prog_name)
         # grp = parser.add_mutually_exclusive_group(required=True)
@@ -132,9 +148,8 @@ class Upload(Command):
             action='append',
             required=True,
             type=str,
-            help='file(s) for upload. Supported file types: .fastq, .fasta, '
-            '.fas, .fa, .seq, .fsa, .fq, .fna, .gz e.g. cosmosid upload -f '
-            '/path/file1.fasta -f /path/file2.fn ')
+            help='file(s) for upload. Supported file types: {} e.g. cosmosid upload -f '
+            '/path/file1.fasta -f /path/file2.fn '.format(', '.join(self.allowed_extensions)))
 
         parser.add_argument('--parent', '-p',
                             action='store',
@@ -150,27 +165,71 @@ class Upload(Command):
                             type=str,
                             default=None,
                             help='Type of analysis for a file')
-
         return parser
 
     def take_action(self, parsed_args):
         """Send files to analysis."""
         parent_id = parsed_args.parent if parsed_args.parent else None
         parent_id = utils.key_len(parent_id, "ID")
-        if parsed_args.file:
-            for file in parsed_args.file:
-                if not os.path.exists(file):
-                    LOGGER.error('Specified file does not exist: %s', file)
-                    continue
-                LOGGER.info('File uploading is started: %s', file)
-                file_id = self.app.cosmosid.upload_files(file,
-                                                         parsed_args.type,
-                                                         parent_id)
-                if not file_id:
-                    return False
-                LOGGER.info('\nFile %s has been sent to analysis.', file)
-                LOGGER.info('Use File ID to get Analysis Result: %s', file_id)
-            LOGGER.info('Task Done')
+
+        credits = self.app.cosmosid.profile()['credits']
+        if credits <= 0:
+            LOGGER.info("\nYou don't have enough credits to run analysis")
+            return
+
+        files = parsed_args.file
+
+        if not all([os.path.exists(f) for f in files]):
+            LOGGER.error('Not all specified files exist: %s', files)
+            return
+
+        pairs = []
+        files = sorted(files)
+        prev_fname, prev_ext = self.get_basename(files[0])
+        if prev_ext not in self.allowed_extensions:
+            LOGGER.info('not supported file extension for file {}'.format(files[0]))
+            return
+
+        paired_ended = {'files': [files[0]], 'sample_name': prev_fname, 'ext': prev_ext}
+
+        for fname in files[1:]:
+            cur_fname, cur_ext = self.get_basename(fname)
+            if cur_ext not in self.allowed_extensions:
+                LOGGER.info('not supported file extension for file {}'.format(fname))
+                return
+
+            if cur_fname == prev_fname and prev_ext == cur_ext:
+                paired_ended['files'].append(fname)
+            else:
+                pairs.append(paired_ended)
+                paired_ended = {'files': [fname], 'sample_name': cur_fname, 'ext': cur_ext}
+                prev_fname = cur_fname
+                prev_ext = cur_ext
+
+        pairs.append(paired_ended)
+
+        pricing_req = []
+        for pair in pairs:
+            pricing_req.append({'sample_key': pair['sample_name'],
+                                'extension': pair['ext'],
+                                'file_sizes': [sum(
+                                    [os.path.getsize(f) for f in pair['files'] if os.path.exists(f)]
+                                )]
+                                })
+        cost = 0
+
+        for price in self.app.cosmosid.pricing(data=pricing_req):
+            cost += price['pricing'][str(parsed_args.type)]
+        if cost > credits:
+            LOGGER.info("\nYou don't have enough credits to run analysis")
+            return
+
+        for pair in pairs:
+            LOGGER.info('File uploading is started: %s', pair)
+            file_id = self.app.cosmosid.upload_files(pair, parsed_args.type, parent_id)
+            LOGGER.info('\nFile %s has been sent to analysis.', pair)
+            LOGGER.info('Use File ID to get Analysis Result: %s', file_id)
+        LOGGER.info('Task Done')
 
 
 class Analysis(Lister):

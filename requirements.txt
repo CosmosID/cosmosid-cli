@@ -1,9 +1,10 @@
-boto3>=1.4.2
+boto3==1.10.2
 cliff==2.8.0
 six
-requests>=2.17
-s3transfer==0.1.10
-dateparser>=0.6.0
-concurrent-log-handler>=0.9.9
+requests==2.22.0
+s3transfer==0.2.1
+dateparser==0.7.1
+concurrent-log-handler==0.9.16
 tzlocal==1.4
-PyYAML>=3.11
+PyYAML==5.1.2
+

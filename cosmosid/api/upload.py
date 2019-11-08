@@ -179,9 +179,8 @@ def upload_file(**kwargs):
     """Upload manager."""
     filename = kwargs.pop('file')
     parent_id = kwargs.pop('parent_id', None)
-    file_type = kwargs.pop('file_type', 2)
     multipart_chunksize = file_size = os.stat(filename)[6]
-    client = create_client(**kwargs)
+    client = kwargs['client']
 
     if file_size > MULTIPART_THRESHOLD:
         multipart_chunksize = min(int(file_size/10), int(MAX_CHUNK_SIZE))
@@ -195,14 +194,11 @@ def upload_file(**kwargs):
     # Check if given parent folder exists
     if parent_id:
         fl_obj = Files(**kwargs)
-        try:
-            res = fl_obj.get_list(parent_id=parent_id)
-            if not res['status']:
-                raise NotFoundException('Parent folder for upload does '
-                                        'not exists.')
-        except NotFoundException as nfex:
-            LOGGER.error('NotFound: %s', nfex)
-            return
+        res = fl_obj.get_list(parent_id=parent_id)
+        if not res['status']:
+            raise NotFoundException('Parent folder for upload does '
+                                    'not exists.')
+
     transfer_manager = TransferManager(client, config=config, osutil=osutil)
 
     subscribers = [ProgressSubscriber(filename), ]
@@ -225,10 +221,6 @@ def upload_file(**kwargs):
                 sources['upload_key'],
                 extra_args=None,
                 subscribers=subscribers)
-
-            s3path, _ = os.path.split(sources['upload_key'])
-            data = dict(path=s3path, size=str(file_size),
-                        name=file_name, parent=parent_id, type=file_type)
         else:
             LOGGER.error('File upload inititalisation Failed. '
                          'Response code: %s', response.status_code)
@@ -239,14 +231,7 @@ def upload_file(**kwargs):
         except KeyboardInterrupt:
             do_not_retry_event.set()
             return
-
-        create_file_url = client.base_url + '/api/metagenid/v1/files'
-        create_response = requests_retry_session().post(
-            create_file_url, json=data, headers=client.header)
-        if create_response.status_code == 201:
-            return create_response.json()
-        else:
-            raise UploadException('Failed to upload file: %s' % file_name)
+        return sources['upload_key']
 
         # If a client error was raised, add the backwards compatibility layer
         # that raises a S3UploadFailedError. These specific errors were only
@@ -261,6 +246,36 @@ def upload_file(**kwargs):
                           sources['upload_key']]),
                 error))
 
+
+def upload_and_save(files, parent_id, file_type, base_url, api_key):
+    """
+    Upload list of files and save them
+    :param files: list of dicts where each file is:
+        {
+            'files': list of file paths,
+            'sample_name': name of sample,
+            'ext': files extension
+        }
+    :param parent_id: id of parent folder
+    :param file_type: type of analysis (shotgun, amplicon, ...)
+    :param base_url: base url of api
+    :param api_key: api key of current user
+    """
+    client = create_client(base_url=base_url, api_key=api_key)
+    try:
+        items = []
+        for file_name in files['files']:
+            items.append(upload_file(client=client, file=file_name, file_type=file_type, parent_id=parent_id))
+        data = dict(source=dict(type='web-upload', items=items),
+                    sample_name=files['sample_name'],
+                    folder_id=parent_id, file_type=file_type)
+        create_file_url = client.base_url + '/api/metagenid/v2/samples'
+        create_response = requests_retry_session().post(
+            create_file_url, json=data, headers=client.header)
+        if create_response.status_code == 200:
+            return create_response.json()
+        else:
+            raise UploadException('Failed to upload files: %s' % data['sample_name'])
     except NotEnoughCredits:
         LOGGER.error('Not Enough Credits')
         return False
@@ -270,3 +285,13 @@ def upload_file(**kwargs):
     except UploadException:
         LOGGER.error("File Upload Failed.")
         return False
+
+
+def pricing(data, base_url, api_key):
+    client = create_client(base_url=base_url, api_key=api_key)
+    pricing_url = client.base_url + '/api/metagenid/v2/samples/pricing'
+    pricing_response = requests_retry_session().post(pricing_url, json={'data': data}, headers=client.header)
+    if pricing_response.status_code == 200:
+        return pricing_response.json()
+    else:
+        pricing_response.raise_for_status()

@@ -44,7 +44,8 @@ from cliff.complete import CompleteCommand
 from cliff.help import HelpAction, HelpCommand
 from cosmosid.client import CosmosidApi
 
-VERSION = '0.7.0'
+VERSION = '0.9.1'
+
 
 class CosmosidApp(App):
     """Command line interface based on openstack/cliff."""

@@ -7,7 +7,7 @@
 """
 from setuptools import setup, find_packages
 
-__version__ = '0.7.0'
+__version__ = '0.9.1'
 
 def _get_requirements():
     with open('requirements.txt') as _file:
@@ -20,7 +20,8 @@ setup(
     version=__version__,
     license='MIT',
     description='Command line client and Python 3 libraries for CosmosID API',
-    long_description=open('README.rst').read(),
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     packages=find_packages(exclude=['contrib', 'docs', '*tests*']),
     python_requires='>=3.5',
     install_requires=_get_requirements(),

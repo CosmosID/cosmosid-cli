@@ -5,6 +5,7 @@ import logging
 import cosmosid.api.upload as upload
 import cosmosid.utils as utils
 from cosmosid.api.analysis import Analysis
+from cosmosid.api import auth
 from cosmosid.api.files import Files, Runs
 from cosmosid.api.reports import Reports
 from cosmosid.helpers.auth import ApiKeyAuth
@@ -69,17 +70,17 @@ class CosmosidApi(object):
             self.logger.error("Failed to get listing of directory %s", parent)
             utils.log_traceback(err)
 
-    def upload_files(self, file, file_type, parent_id=None):
+    def upload_files(self, files, file_type, parent_id=None):
         """Upload single file."""
-        error_msg = '\nError occurred on File upload: {}'.format(file)
+        error_msg = '\nError occurred on File upload: {}'.format(files)
         try:
-            upload_res = upload.upload_file(file=file,
-                                            parent_id=parent_id,
-                                            file_type=file_type,
-                                            base_url=self.base_url,
-                                            api_key=self.api_key)
+            upload_res = upload.upload_and_save(files=files,
+                                                parent_id=parent_id,
+                                                file_type=file_type,
+                                                base_url=self.base_url,
+                                                api_key=self.api_key)
             if upload_res:
-                return upload_res['created'][0]
+                return upload_res['id']
             else:
                 self.logger.error(error_msg)
         except UploadException as err:
@@ -152,3 +153,26 @@ class CosmosidApi(object):
         except Exception as err:
             self.logger.error('Client exception occured')
             utils.log_traceback(err)
+
+    def pricing(self, data):
+        """Get pricing information for the given list of samples and their sizes
+            data:
+            [  { "sample_key": "sample_name", "extension": "bam", "file_sizes": [100, 300]},
+               ...
+            ]
+
+        """
+        try:
+            return upload.pricing(data=data, base_url=self.base_url, api_key=self.api_key)
+        except Exception as err:
+            self.logger.error(err)
+            utils.log_traceback(err)
+
+    def profile(self):
+        """"Get profile information for current user"""
+        try:
+            return auth.get_profile(self.base_url, self.api_key)
+        except Exception as err:
+            self.logger.error('Client exception occured')
+            utils.log_traceback(err)
+            raise
