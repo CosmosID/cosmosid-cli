@@ -193,7 +193,7 @@ def upload_file(**kwargs):
     osutil = OSUtilsWithCallbacks()
     # Check if given parent folder exists
     if parent_id:
-        fl_obj = Files(**kwargs)
+        fl_obj = Files(base_url=kwargs['base_url'], api_key=kwargs['api_key'])
         res = fl_obj.get_list(parent_id=parent_id)
         if not res['status']:
             raise NotFoundException('Parent folder for upload does '
@@ -265,7 +265,8 @@ def upload_and_save(files, parent_id, file_type, base_url, api_key):
     try:
         items = []
         for file_name in files['files']:
-            items.append(upload_file(client=client, file=file_name, file_type=file_type, parent_id=parent_id))
+            items.append(upload_file(client=client, file=file_name, file_type=file_type, parent_id=parent_id,
+                                     api_key=api_key, base_url=base_url))
         data = dict(source=dict(type='web-upload', items=items),
                     sample_name=files['sample_name'],
                     folder_id=parent_id, file_type=file_type)

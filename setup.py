@@ -7,7 +7,9 @@
 """
 from setuptools import setup, find_packages
 
-__version__ = '0.9.1'
+from cosmosid.cli import VERSION
+__version__ = VERSION
+
 
 def _get_requirements():
     with open('requirements.txt') as _file:
