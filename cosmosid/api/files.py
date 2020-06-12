@@ -17,7 +17,7 @@ LOGGER = logging.getLogger(__name__)
 
 class Files(object):
     """Files tructure."""
-    __resource_path = '/api/metagenid/v1/files'
+    __resource_path = '/api/metagenid/v2/files'
 
     def __init__(self, base_url=None, api_key=None):
         self.base_url = base_url
@@ -48,8 +48,9 @@ class Files(object):
             if requests.codes.ok:
                 results = results.json()
                 results.update({'status': 1})
+                #microbiom standart doesnt have an export TODO:export var
                 results['items'] = [i for i in results['items']
-									if i['content_type'] != 7]
+                                    if i['content_type'] != 7]
                 return results
         except AuthenticationFailed as err:
             utils.log_traceback(err)
@@ -76,7 +77,7 @@ class Files(object):
                                            'Wrong API Key.')
             results.raise_for_status()
             if requests.codes.ok:
-                results = results.json()
+                results = results.json()['items'].pop()
                 results.update({'status': 1})
                 return results
         except AuthenticationFailed as err:
@@ -99,7 +100,7 @@ class Runs(Files):
         try:
             runs_list = self.get_runs_list(file_id=file_id)
             if not runs_list:
-                raise CosmosidException('Error uccurred on get list of runs '
+                raise CosmosidException('Error occurred on get list of runs '
                                         'for a File: {}'.format(file_id))
             if not runs_list['status']:
                 raise NotFoundException(runs_list['message'])
@@ -190,7 +191,7 @@ class Runs(Files):
             utils.log_traceback(err)
         except NotFoundException as err:
             utils.log_traceback(err)
-        except CosmosidException:
+        except CosmosidException as err:
             self.logger.error('Got runs list exception')
             utils.log_traceback(err)
         except Exception as err:

@@ -1,1 +1,1 @@
-name = "cosmosid-cli"
+__version__='1.0.4'

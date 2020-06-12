@@ -1,6 +1,6 @@
 # Cosmos ID
 
- Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API. Only works with Python 3, Python 2.7 is not supported yet.
+ Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API. Only works with Python 3.6, Python 2.7 is not supported yet.
 
 ## Requirements
 
@@ -37,6 +37,9 @@ The CLI with the core Python library can be installed using `pip3`.
 > $ sudo -H pip3 install --upgrade cosmosid_cli
 > ```
 
+To install package locally from folder with source files, just inside `cosmosid-cli/` run command:
+`pip3 install -e .` 
+
 
 # Using the CosmosID CLI
 
@@ -52,6 +55,7 @@ You can directly use your CosmosID API Key, rather than storing it in a credenti
 ```shell
 cosmosid --api_key=YOUR_API_KEY <command>
 ```
+CLI supports  files of following extensions: 'fasta', 'fna', 'fasta.gz', 'fastq', 'fq', 'fastq.gz', 'bam', 'sra'
 
 ## Commands
 
@@ -82,7 +86,7 @@ optional arguments:
   -h, --help            show this help message and exit
   --parent PARENT, -p PARENT
                         ID of the parent directory. Default: Root
-  --order {type,name,id,status,size,created}, -o {type,name,id,status,size,created}
+  --order {type,name,id,status,reads,created}, -o {type,name,id,status,size,created}
                         field for ordering
   --up                  order direction
 
@@ -99,7 +103,7 @@ json formatter:
 
 table formatter:
   --max-width <integer>
-                        Maximum display width, <1 to disable. You can also use
+                        Maximum display width, 1 to disable. You can also use
                         the CLIFF_MAX_TERM_WIDTH environment variable, but the
                         parameter takes precedence.
 
@@ -119,17 +123,17 @@ To retrieve files (samples) stored in CosmosID simply run the `cosmosid` command
 cosmosid files
 
 #to get contents of appropriate folder use its id as argument
-cosmosid files --parent <folder_id>
+cosmosid files --parent=<folder_id>
 
 #to get ordered list simply use the ordering argument with field name with/without order direction
-cosmosid files --parent <folder_id> --order size --up
+cosmosid files --parent=<folder_id> --order size --up
 ```
 ### Retrieve Sample Runs
 An each file (sample) stored in CosmosID has one or more Sample Run(s) associated with it. 
 To retrieve sample run(s) associated with a file simply run the `cosmosid` command with `runs` subcommand. For example:
 ```shell
 #to get runs associated with a speciffic file (sample)
-cosmosid runs --id <file_id>
+cosmosid runs --id=<file_id>
 ```    
 ### Upload files
 The CosmosID CLI supports uploading sample files into CosmosID for analysis.
@@ -145,6 +149,9 @@ CosmosID supports the following types of analysis:
 To upload sample file to CosmosID run `cosmosid` command with `upload` subcommand. By default samples will be uploaded into root folder. To upload sample into specific *existing* folder you must use id of the folder as parameter.
 The CosmosID CLI supports uploading multiple Single-Read and Paired-End samples. For Paired-End samples, the CLI automatically parse and merge samples in pairs if the samples follow the naming conventions like: xxx_R1.fastq and xxx_R2.fastq OR xxx_R1_001.fastq and xxx_R2_001.fastq. Note: Paired-End samples require "fastq" format
 
+To upload all samples from folder run `cosmosid upload` command with path to folder specified by --dir/-d parameter 
+> Note: This command respects Paired-End samples grouping with the same rules as for regular upload 
+
 Running example:
 
 cosmosid upload --type metagonomics -f /pathtofile/test1_R1.fastq -f /pathtofile/test1_R2.fastq -f  /pathtofile/test2.fasta
@@ -154,6 +161,9 @@ cosmosid upload --file <path to file> --type metagenomics
 
 #to upload sample file into specific folder for Amplicon 16s analysis
 cosmosid upload --file <path to file-1> --parent <folder id> --type amplicon-16s
+
+#to upload all files from folder 
+cosmosid upload -d /home/user/samples/ --type metagenomics
 ```
 
 > Note: uploading of a big file takes time, please be patient
@@ -168,13 +178,13 @@ Analysis results can be retrieved from CosmosID by useing run id or file id. The
 To retrieve analysis results for a specified run in CosmosID simply run `cosmosid` command with `analysis` subcommand. File  For example:
 ```shell
 #to get list of analysis for the latest run of file
-cosmosid analysis --id <file ID>
+cosmosid analysis --id=<file ID>
 
 #to get list of analysis for a given run id
-cosmosid analysis --run_id <run ID>
+cosmosid analysis --run_id=<run ID>
 
 #to get ordered list of analysis for a given file id simply use ordering argument with field name with/without order direction
-cosmosid analysis --id <file ID> --order created --up
+cosmosid analysis --id=<file ID> --order created --up
 ```
 
 > Note: There is no analysis results for Amplicon 16S and Amplicon ITS sample. Use report generation instead of getting list of analysis for Amplicon 16S and Amplicon ITS.
@@ -186,17 +196,17 @@ To retrieve an analysis report archive with TSV files run the `cosmosid` command
 ```shell
 # to create analysis report archive for the latest run of sample and save it in
 # a current directory with a name equivalent to file name in CosmosID
-cosmosid reports --id <file ID>
+cosmosid reports --id=<file ID>
 
 # to create analysis report archive for the given run of sample and save it in
 # a current directory with a name equivalent to file name in CosmosID
-cosmosid reports --id <file ID> --run_id <run ID>
+cosmosid reports --id=<file ID> --run_id=<run ID>
 
 # to create analysis report archive for the given run of sample and save it 
 # in a given directory
-cosmosid reports --id <file ID> --run_id <run ID> --dir ~/cosmosid/reports
+cosmosid reports --id=<file ID> --run_id=<run ID> --dir ~/cosmosid/reports
 
 # to create analysis report archive for the given run of sample and save it 
 # into a given local file
-cosmosid reports --id <file ID> --output /tmp/analysis_report.zip
+cosmosid reports --id=<file ID> --output /tmp/analysis_report.zip
 ```

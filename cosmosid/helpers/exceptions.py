@@ -35,7 +35,7 @@ class PermissionDenied(CosmosidException):
     pass
 
 
-class StatusExeception(CosmosidException):
+class StatusException(CosmosidException):
     name = "NoStatus"
     status_code = 406
     message = "Wrong status of dataset."

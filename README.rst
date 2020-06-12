@@ -152,12 +152,19 @@ analysis. CosmosId supports following file types: *.fastq, .fasta, .fas,
 CosmosId supports following types of analysis: \* Metagenomics. \* Amplicon - 16s (only 16S supported for now)
 
     Note: you can get usage help for each command and arguments of
-    Mcosmosid CLI to simply runnig ``cosmosid --help`` or
+    Cosmosid CLI to simply runnig ``cosmosid --help`` or
     ``cosmosid <command> --help``
     To upload sample file to CosmosID run ``cosmosid`` command with
     ``upload`` subcommand.  By default samples will be uploaded into
     root folder. To upload sample into specific *existing* folder
     you must use id of the folder as parameter.
+
+To upload sample file to CosmosID run `cosmosid` command with `upload` subcommand. By default samples will be uploaded into root folder. To upload sample into specific *existing* folder you must use id of the folder as parameter.
+The CosmosID CLI supports uploading multiple Single-Read and Paired-End samples. For Paired-End samples, the CLI automatically parse and merge samples in pairs if the samples follow the naming conventions like: xxx_R1.fastq and xxx_R2.fastq OR xxx_R1_001.fastq and xxx_R2_001.fastq. Note: Paired-End samples require "fastq" format
+
+To upload all samples from folder run `cosmosid upload` command with path to folder specified by --dir/-d parameter 
+> Note: This command respects Paired-End samples grouping with the same rules as for regular upload 
+
 
 .. code:: shell
 

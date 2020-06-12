@@ -9,7 +9,7 @@ import requests
 from cosmosid.api.files import Runs
 from cosmosid.helpers.exceptions import (AuthenticationFailed,
                                          FileExistsException, NotFound,
-                                         NotFoundException, StatusExeception,
+                                         NotFoundException, StatusException,
                                          ValidationError)
 
 LOGEGR = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class Reports(object):
                 raise AuthenticationFailed('Authentication Failed. '
                                            'Wrong API Key')
             if results.status_code == 406:
-                raise StatusExeception('File has a NON SUCCESS status')
+                raise StatusException('File has a NON SUCCESS status')
             if results.status_code == 404:
                 raise NotFound('File with given ID does '
                                'not exist: {}'.format(self.file_id))
@@ -71,8 +71,8 @@ class Reports(object):
         except AuthenticationFailed:
             self.logger.error('Authentication Failed')
             return {'url': None}
-        except StatusExeception:
-            self.logger.error('StatusExeception')
+        except StatusException:
+            self.logger.error('StatusException')
             return {'url': 1}
         except NotFound:
             self.logger.error('Not Found')
@@ -103,17 +103,16 @@ class Reports(object):
             if out_dir:
                 out_dir = expanduser(normpath(out_dir))
                 if not isdir(out_dir):
-                    raise NotFoundException('Distination directory does '
+                    raise NotFoundException('Destination directory does '
                                             'not exist: {}'.format(out_dir))
             else:
                 out_dir = os.getcwd()
             report_data = self.get_report_url()
 
             if not report_data['url']:
-                raise Exception('Empty report Url recieved')
+                raise Exception('Empty report Url received')
             if report_data['url'] == 1:
-                raise NotFoundException('Report can not be generated '
-                                        'for file with NON SUCCESS status.')
+                raise NotFoundException('Report can not be generated for file with NON SUCCESS status.')
             parsed_url = urlparse(report_data['url'])
             _, file_name = split(parsed_url.path)
             if out_file:
@@ -121,11 +120,10 @@ class Reports(object):
                 out_dir, file_name = split(out_file)
 
             _, extension = splitext(file_name)
-            file_name = (file_name if extension == '.zip' else
-                         join(file_name + '.zip'))
+            file_name = (file_name if extension == '.zip' else join(file_name + '.zip'))
             out_file = join(out_dir, file_name)
             if isfile(out_file):
-                raise FileExistsException('Distination File exists: %s'
+                raise FileExistsException('Destination File exists: %s'
                                           % out_file)
             with open(out_file, "wb") as output:
                 with urllib.request.urlopen(report_data['url']) as response:

@@ -3,7 +3,7 @@
 
 $ ./cosmosid/cli.py
 usage: cli.py [--version] [-v | -q] [--log-file LOG_FILE] [-h] [--debug]
-              [--api_key API_KEY] [--base_url BASE_URL]
+              [--api_key API_KEY] [--base_url BASE_URL] cmd
 
 Client for interacting with the CosmosID
 
@@ -22,7 +22,7 @@ Commands:
   complete       print bash completion command
   files          Show files in a given directory.
   help           print detailed help for another command
-  reports        Get analysis reports CSV/PDF.
+  reports        Get analysis reports in TSV format.
   runs           Show List Of Runs for a given File.
   upload         Upload files to cosmosid.
 
@@ -31,6 +31,8 @@ $ ./cosmosid/cli.py --base_url https://example.com upload \
 -t metagenomics -f ~/1.5G.fasta --api_key my-key-...
 
 """
+
+
 
 import logging.config
 import os
@@ -43,8 +45,7 @@ from cliff.commandmanager import CommandManager
 from cliff.complete import CompleteCommand
 from cliff.help import HelpAction, HelpCommand
 from cosmosid.client import CosmosidApi
-
-VERSION = '0.9.2'
+from cosmosid import __version__
 
 
 class CosmosidApp(App):
@@ -53,7 +54,7 @@ class CosmosidApp(App):
     def __init__(self):
         super(CosmosidApp, self).__init__(
             description="""Client for interacting with the CosmosID""",
-            version=VERSION,
+            version=__version__,
             command_manager=CommandManager('cosmosid'),
             deferred_help=True)
         self.cosmosid = None

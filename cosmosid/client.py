@@ -98,7 +98,7 @@ class CosmosidApi(object):
                 else:
                     raise NotFoundException(analysis_list['message'])
             else:
-                raise CosmosidException('Error uccurred on get list of '
+                raise CosmosidException('Error occurred on get list of '
                                         'analysis for a File: %s'
                                         % file_id)
         except NotFoundException as err:
@@ -119,6 +119,12 @@ class CosmosidApi(object):
                          file_id=file_id,
                          run_id=run_id)
         try:
+            file_obj = Files(base_url=self.base_url, api_key=self.api_key)
+            res = file_obj.get_file(file_id=file_id)
+            if not res:
+                raise CosmosidException('Response from service is empty '
+                                        'for file id {}'.format(file_id))
+
             results = report.save_report(out_file=output_file,
                                          out_dir=output_dir)
             if results['status']:
@@ -142,7 +148,7 @@ class CosmosidApi(object):
                 else:
                     raise NotFoundException(sample_run_list['message'])
             else:
-                raise CosmosidException('Error uccurred on get list of runs '
+                raise CosmosidException('Error occurred on get list of runs '
                                         'for a File: %s' % file_id)
         except NotFoundException as err:
             self.logger.error('NotFound')

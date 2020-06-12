@@ -6,10 +6,23 @@
 
 """
 from setuptools import setup, find_packages
+import os
+import codecs
+import os.path
 
-from cosmosid.cli import VERSION
-__version__ = VERSION
 
+def read(rel_path):
+    here = os.path.abspath(os.path.dirname(__file__))
+    with codecs.open(os.path.join(here, rel_path), 'r') as fp:
+        return fp.read()
+
+def get_version(rel_path):
+    for line in read(rel_path).splitlines():
+        if line.startswith('__version__'):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
 
 def _get_requirements():
     with open('requirements.txt') as _file:
@@ -19,7 +32,7 @@ def _get_requirements():
 
 setup(
     name='cosmosid_cli',
-    version=__version__,
+    version=get_version("cosmosid/__init__.py"),
     license='MIT',
     description='Command line client and Python 3 libraries for CosmosID API',
     long_description=open('README.md').read(),

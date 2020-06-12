@@ -7,7 +7,6 @@ import types
 
 import boto3
 import requests
-
 from boto3.exceptions import S3UploadFailedError
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
@@ -15,14 +14,12 @@ from s3transfer.manager import TransferManager
 from s3transfer.subscribers import BaseSubscriber
 from s3transfer.utils import OSUtils, ReadFileChunk
 
-
 from cosmosid.api.files import Files
+from cosmosid.api import urls
 from cosmosid.helpers.exceptions import (AuthenticationFailed,
                                          NotEnoughCredits, NotFoundException,
                                          UploadException)
-from cosmosid.utils import (do_not_retry_event, requests_retry_session, retry,
-                            LOCK)
-
+from cosmosid.utils import (do_not_retry_event, requests_retry_session, retry, LOCK)
 
 LOGGER = logging.getLogger(__name__)
 KB = 1024
@@ -38,6 +35,7 @@ MAX_CONCURRENCY = 5
 
 class OSUtilsWithCallbacks(OSUtils):
     """Abstruction for manipulations on file[-like] objects."""
+
     def open_file_chunk_reader(self, filename, start_byte, size, callbacks):
         return ReadFileChunk.from_filename(filename, start_byte,
                                            size, callbacks,
@@ -53,6 +51,7 @@ class OSUtilsWithCallbacks(OSUtils):
 
 class ProgressSubscriber(BaseSubscriber):
     """Progress subscriber for any number of upload threads."""
+
     def __init__(self, filename):
         self._filename = filename
         self._size = float(os.path.getsize(filename))
@@ -66,8 +65,8 @@ class ProgressSubscriber(BaseSubscriber):
             percentage = (self._seen_so_far / self._size) * 100
             sys.stdout.write(
                 "\r%s  %sMB / %sMB  (%.2f%%)" % (self._filename,
-                                                 int(self._seen_so_far/MB),
-                                                 int(self._size/MB),
+                                                 int(self._seen_so_far / MB),
+                                                 int(self._size / MB),
                                                  percentage))
             sys.stdout.flush()
 
@@ -79,20 +78,15 @@ def create_client(base_url, api_key):
     operations.
     """
     client = boto3.client('s3')
-    bfresource = '/api/metagenid/v1/files/upload_bfile'
-    sfresource = '/api/metagenid/v1/files/upload_sfile'
     client.base_url = base_url
     client.header = {'X-Api-Key': api_key}
-    client.burl = client.base_url + bfresource
-    client.surl = client.base_url + sfresource
-    client.create_multipart_upload = types.MethodType(create_multipart_upload,
-                                                      client)
-    client.abort_multipart_upload = types.MethodType(abort_multipart_upload,
-                                                     client)
+    client.burl = client.base_url + urls.UPLOAD_BFILE_URL
+    client.surl = client.base_url + urls.UPLOAD_SFILE_URL
+    client.create_multipart_upload = types.MethodType(create_multipart_upload,client)
+    client.abort_multipart_upload = types.MethodType(abort_multipart_upload,client)
     client.upload_part = types.MethodType(upload_part, client)
     client.put_object = types.MethodType(put_object, client)
-    client.complete_multipart_upload = \
-        types.MethodType(complete_multipart_upload, client)
+    client.complete_multipart_upload = types.MethodType(complete_multipart_upload, client)
     return client
 
 
@@ -179,14 +173,14 @@ def upload_file(**kwargs):
     """Upload manager."""
     filename = kwargs.pop('file')
     parent_id = kwargs.pop('parent_id', None)
-    multipart_chunksize = file_size = os.stat(filename)[6]
+    multipart_chunksize = file_size = os.stat(filename)[6] #get size of file in bytes
     client = kwargs['client']
 
-    if file_size > MULTIPART_THRESHOLD:
-        multipart_chunksize = min(int(file_size/10), int(MAX_CHUNK_SIZE))
+    if file_size > MULTIPART_THRESHOLD: #bigger that 1GB
+        multipart_chunksize = min(int(file_size / 10), int(MAX_CHUNK_SIZE))
         multipart_chunksize = max(multipart_chunksize, int(MIN_CHUNK_SIZE))
-        LOGGER.info('File size: %s MB', file_size/MB)
-        LOGGER.info('Chunk size: %s MB', int(multipart_chunksize/MB))
+        LOGGER.info('File size: %s MB', file_size / MB)
+        LOGGER.info('Chunk size: %s MB', int(multipart_chunksize / MB))
     config = TransferConfig(multipart_threshold=MULTIPART_THRESHOLD,
                             max_concurrency=MAX_CONCURRENCY,
                             multipart_chunksize=multipart_chunksize)
@@ -205,7 +199,7 @@ def upload_file(**kwargs):
 
     _, file_name = os.path.split(filename)
     try:
-        init_url = client.base_url + '/api/metagenid/v1/files/upload_init'
+        init_url = client.base_url + urls.UPLOAD_INIT_URL
         response = requests_retry_session().put(init_url,
                                                 json=dict(file_name=file_name),
                                                 headers=client.header)
@@ -270,7 +264,7 @@ def upload_and_save(files, parent_id, file_type, base_url, api_key):
         data = dict(source=dict(type='web-upload', items=items),
                     sample_name=files['sample_name'],
                     folder_id=parent_id, file_type=file_type)
-        create_file_url = client.base_url + '/api/metagenid/v2/samples'
+        create_file_url = client.base_url + urls.SAMPLES_URL
         create_response = requests_retry_session().post(
             create_file_url, json=data, headers=client.header)
         if create_response.status_code == 200:
@@ -290,8 +284,8 @@ def upload_and_save(files, parent_id, file_type, base_url, api_key):
 
 def pricing(data, base_url, api_key):
     client = create_client(base_url=base_url, api_key=api_key)
-    pricing_url = client.base_url + '/api/metagenid/v2/samples/pricing'
-    pricing_response = requests_retry_session().post(pricing_url, json={'data': data}, headers=client.header)
+    pricing_url = client.base_url + urls.SAMPLES_PRICING_URL
+    pricing_response = requests_retry_session().post(url=pricing_url, json={'data': data}, headers=client.header)
     if pricing_response.status_code == 200:
         return pricing_response.json()
     else:
