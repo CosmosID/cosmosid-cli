@@ -27,7 +27,7 @@ def get_version(rel_path):
 def _get_requirements():
     with open('requirements.txt') as _file:
         requirements = _file.read().splitlines()
-    requirements.append('pywin32==223;platform_system=="Windows"')
+    requirements.append('pywin32>=223;platform_system=="Windows"')
     return requirements
 
 setup(
@@ -38,7 +38,7 @@ setup(
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     packages=find_packages(exclude=['contrib', 'docs', '*tests*']),
-    python_requires='>=3.5',
+    python_requires='>=3.5, <3.9',
     install_requires=_get_requirements(),
     package_data={
         'cosmosid': ['logger_config.yaml', ],

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.5]
+
+### Changed
+1. Fixed windows related issue with `pywin>=223` that allows to use Python 3.7, 3.8
+
 ## [1.0.4]
 
 ### Changed

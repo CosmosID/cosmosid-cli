@@ -1,6 +1,6 @@
 # Cosmos ID
 
- Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API. Only works with Python 3.6, Python 2.7 is not supported yet.
+ Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API. Only works with Python [3.6, 3.7, 3.8], Python 2.7 is not supported yet.
 
 ## Requirements
 
