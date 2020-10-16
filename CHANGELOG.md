@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.6]
+
+* only version increased (fix wrong published)
+
 ## [1.0.5]
 
 ### Changed
