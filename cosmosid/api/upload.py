@@ -188,7 +188,7 @@ def upload_file(**kwargs):
     # Check if given parent folder exists
     if parent_id:
         fl_obj = Files(base_url=kwargs['base_url'], api_key=kwargs['api_key'])
-        res = fl_obj.get_list(parent_id=parent_id)
+        res = fl_obj.get_list(parent_id=parent_id, limit=1)
         if not res['status']:
             raise NotFoundException('Parent folder for upload does '
                                     'not exists.')

@@ -26,42 +26,57 @@ class Files(object):
         self.request_url = '{}{}'.format(self.base_url,
                                          self.__class__.__resource_path)
 
-    def get_list(self, parent_id=None):
-
-        data = {'folder_id': parent_id} if parent_id else {}
-        results = {}
+    def get_list(self, parent_id=None, limit=1000):
+        params = {'limit': limit, 'offset': 0}
+        if parent_id:
+            params['folder_id'] = parent_id
+        result = {'items': [], 'total': 0, 'status': 1}
+        result_set = False
         try:
-            results = requests.get(self.request_url,
-                                   headers=self.auth_header,
-                                   params=data)
-            if results.status_code == 400:
-                if json.loads(results.text)['error_code'] == 'NotUUID':
-                    raise NotFound('Wrong ID.')
-            if results.status_code == 404:
-                results = results.json()
-                results.update({'status': 0})
-                return results
-            if results.status_code == 403:
-                raise AuthenticationFailed('Authentication Failed. '
-                                           'Wrong API Key.')
-            results.raise_for_status()
-            if requests.codes.ok:
-                results = results.json()
-                results.update({'status': 1})
-                #microbiom standart doesnt have an export TODO:export var
-                results['items'] = [i for i in results['items']
-                                    if i['content_type'] != 7]
-                return results
+            while True:
+                response = requests.get(self.request_url, headers=self.auth_header, params=params)
+                if response.status_code == 400:
+                    content = json.loads(response.text)
+                    if content['error_code'] == 'NotUUID':
+                        raise NotFound('Invalid ID specified.')
+
+                if response.status_code == 404:
+                    result = response.json()
+                    result.update({'status': 0})
+                    return result
+
+                if response.status_code == 403:
+                    raise AuthenticationFailed(
+                        'Authentication Failed. Wrong API Key.')
+
+                response.raise_for_status()
+
+                if requests.codes.ok:
+                    content = response.json()
+                    if not result_set:
+                        result['status'] = 1
+                        result['name'] = content['name']
+                        result['is_public'] = content['is_public']
+                        result['breadcrumbs'] = content['breadcrumbs']
+                    # microbiom standard doesn't have an export
+                    items = [i for i in content['items'] if i['content_type'] != 7]
+                    result['items'].extend(items)
+                    result['total'] += len(items)
+                    if content['total'] < limit:
+                        break
+                    params['offset'] += limit
+            return result
+
         except AuthenticationFailed as err:
             utils.log_traceback(err)
         except NotFound as err:
             utils.log_traceback(err)
         except requests.exceptions.RequestException as err:
-            self.logger.error('Error occured during request')
+            self.logger.error('Error occurred during request')
             utils.log_traceback(err)
 
     def get_file(self, file_id=None):
-        request_url = self.request_url + "/" + file_id
+        request_url = self.request_url + (("/" + file_id) if file_id else "")
         results = {}
         try:
             results = requests.get(request_url, headers=self.auth_header)
@@ -87,7 +102,7 @@ class Files(object):
             self.logger.error('Not Found')
             utils.log_traceback(err)
         except requests.exceptions.RequestException as err:
-            self.logger.error('Error occured during request')
+            self.logger.error('Error occurred during request')
             self.logger.error('Response Status Code: %s', results.status_code)
             utils.log_traceback(err)
 
