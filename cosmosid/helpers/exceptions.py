@@ -85,3 +85,15 @@ class NotFoundException(CosmosidException):
 
 class FileExistsException(CosmosidException):
     pass
+
+
+class ReportGenerationFailed(CosmosidException):
+    name = "Report"
+    status_code = 400
+    message = "Can't generate sample report."
+
+
+class ReportGenerationTimeout(CosmosidException):
+    name = "Report"
+    status_code = 400
+    message = "Report generation timeout reached."

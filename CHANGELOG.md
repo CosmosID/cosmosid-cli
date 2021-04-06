@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.8]
+
+### Changed
+
+1. Minor: Added progress indicator for report generation
+
+### Fixed
+
+* The sample export got broken files (switch to v2 API).
+
 ## [1.0.7]
 
 ### Changed

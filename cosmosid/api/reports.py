@@ -1,6 +1,8 @@
 """Representation of Reports."""
+import json
 import logging
 import os
+import time
 import urllib.request
 from os.path import expanduser, isdir, isfile, join, normpath, split, splitext
 from urllib.parse import urlparse
@@ -10,13 +12,21 @@ from cosmosid.api.files import Runs
 from cosmosid.helpers.exceptions import (AuthenticationFailed,
                                          FileExistsException, NotFound,
                                          NotFoundException, StatusException,
-                                         ValidationError)
+                                         ValidationError, ReportGenerationFailed,
+                                         ReportGenerationTimeout)
+from cosmosid.utils import progress, requests_retry_session
 
 LOGEGR = logging.getLogger(__name__)
 
+class RunReportResponseStatus:
+    CREATED = "created"
+    RUNNING = "running"
+    FAILED = "failed"
+    COMPLETED = "completed"
+
 
 class Reports(object):
-    _resource_path = '/api/metagenid/v1/files/{file_id}/csv'
+    _resource_path = '/api/metagenid/v2/files/report/tsv'
 
     def __init__(self, base_url=None, api_key=None, file_id=None, run_id=None):
         self.base_url = base_url
@@ -27,6 +37,9 @@ class Reports(object):
         self.run_id = run_id
         self.run_o = Runs(base_url=self.base_url,
                           api_key=self.header['X-Api-Key'])
+        self.session = requests_retry_session(self.header)
+        self.session.headers.update()
+
 
     def __is_runid_in_file(self):
         """Get given run meta and check is the run in sample."""
@@ -37,6 +50,26 @@ class Reports(object):
                     return True
         return False
 
+    def await_report_task(self, task_id, timeout=5*60):
+        task_url = f"{self.base_url}/api/metagenid/v2/files/report/{task_id}"
+        start_time = time.time()
+        self.logger.info("Awaiting the report task to be scheduled and complete.")
+        while time.time() < start_time + timeout:
+            result = self.session.get(task_url, headers=self.header)
+            result.raise_for_status()
+            task_data = json.loads(result.text)
+            if task_data['status'] == RunReportResponseStatus.COMPLETED:
+                return task_data['payload']
+            if task_data['status'] == RunReportResponseStatus.FAILED:
+                error = str(task_data['error'])
+                raise ReportGenerationFailed(
+                    f"Can't complete the report task {task_id}. "
+                    f"Error: {error}")
+            progress((time.time() - start_time), timeout, f"Status: {task_data['status']}")
+            time.sleep(1)
+        raise ReportGenerationTimeout()
+
+
     def get_report_url(self):
         """Return URL for download."""
         params = dict()
@@ -45,29 +78,32 @@ class Reports(object):
                                         self.__class__._resource_path)
             if not self.file_id:
                 raise ValidationError('File ID is required')
-            if self.run_id:
-                if not self.__is_runid_in_file():
+            if self.run_id and not self.__is_runid_in_file():
                     raise NotFound('Given Run id {} is not in '
                                    'given File {}'.format(self.run_id,
                                                           self.file_id))
 
-            params.update(sample_run_id=self.run_id)
-            request_url = request_url.format(file_id=self.file_id)
-            results = requests.get(request_url, params=params,
-                                   headers=self.header)
+            # TODO: propagate supported type and tax_level
+            params = {"files": [self.file_id]}
+            results = self.session.post(
+                request_url, json=params, headers=self.header)
+
             if results.status_code == 403:
                 raise AuthenticationFailed('Authentication Failed. '
                                            'Wrong API Key')
-            if results.status_code == 406:
+            # TODO: check wheter it applicable on v2
+            if results.status_code == 400:
                 raise StatusException('File has a NON SUCCESS status')
+
             if results.status_code == 404:
                 raise NotFound('File with given ID does '
                                'not exist: {}'.format(self.file_id))
-            if requests.codes.ok:
-                resp = results.json()
-                resp.update(status=1)
-                return resp
             results.raise_for_status()
+            task_resp = results.json()
+            result = self.await_report_task(task_id=task_resp['id'])
+            result.update(status=1)
+            return result
+
         except AuthenticationFailed:
             self.logger.error('Authentication Failed')
             return {'url': None}

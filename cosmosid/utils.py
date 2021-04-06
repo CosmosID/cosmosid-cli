@@ -123,3 +123,11 @@ def requests_retry_session(retries=3,
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
+
+def progress(count, total, status=''):
+    length = 60
+    completed = int(round(length * count / float(total)))
+    percents = round(100.0 * count / float(total), 1)
+    bar = '=' * completed + '-' * (length - completed)
+    sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', status))
+    sys.stdout.flush()
