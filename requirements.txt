@@ -8,4 +8,4 @@ s3transfer==0.2.1
 dateparser==0.7.1
 concurrent-log-handler==0.9.16
 tzlocal==1.4
-PyYAML==5.1.2
+PyYAML==5.4

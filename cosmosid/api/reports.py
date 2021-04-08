@@ -59,14 +59,17 @@ class Reports(object):
             result.raise_for_status()
             task_data = json.loads(result.text)
             if task_data['status'] == RunReportResponseStatus.COMPLETED:
+                progress(1, 1, f"Status: {task_data['status']}")
                 return task_data['payload']
             if task_data['status'] == RunReportResponseStatus.FAILED:
                 error = str(task_data['error'])
+                progress(1, 1, f"Status: {task_data['status']}")
                 raise ReportGenerationFailed(
                     f"Can't complete the report task {task_id}. "
                     f"Error: {error}")
             progress((time.time() - start_time), timeout, f"Status: {task_data['status']}")
             time.sleep(1)
+        progress(1, 1, f"Status: Timeout")
         raise ReportGenerationTimeout()
 
 

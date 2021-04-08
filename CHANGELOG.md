@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.9]
+
+### Changed
+
+1. Upgraded PyYaml dependency to 5.4
+
+### Fixed
+
+1. Minor: progress indicator update to 100% on task exit.
+
 ## [1.0.8]
 
 ### Changed
