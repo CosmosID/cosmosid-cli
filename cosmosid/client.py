@@ -3,8 +3,11 @@
 import logging
 
 import cosmosid.api.upload as upload
+import cosmosid.api.import_workflow as import_workflow
 import cosmosid.utils as utils
 from cosmosid.api.analysis import Analysis
+from cosmosid.api.workflow import Workflow
+from cosmosid.api.import_workflow import ImportWorkflow
 from cosmosid.api import auth
 from cosmosid.api.files import Files, Runs
 from cosmosid.api.reports import Reports
@@ -19,7 +22,7 @@ class CosmosidApi(object):
     """
     logger = logging.getLogger(__name__)
 
-    BASE_URL = 'https://rest.cosmosid.com'
+    BASE_URL = 'https://app.cosmosid.com'
 
     def __init__(self, api_key=None, base_url=BASE_URL):
         """Initialize a client with the given params."""
@@ -48,11 +51,10 @@ class CosmosidApi(object):
             utils.log_traceback(err)
         return api_key
 
-    def directory_list(self, parent):
-        """"get listing of appropriate directory."""
+    def dashboard(self, parent):
         file_obj = Files(base_url=self.base_url, api_key=self.api_key)
         try:
-            res = file_obj.get_list(parent_id=parent)
+            res = file_obj.get_dashboard(parent_id=parent)
             if res:
                 if res['status']:
                     return res
@@ -68,6 +70,27 @@ class CosmosidApi(object):
             utils.log_traceback(err)
         except Exception as err:
             self.logger.error("Failed to get listing of directory %s", parent)
+            utils.log_traceback(err)
+
+    def get_enabled_workflows(self):
+        workflow = Workflow(base_url=self.base_url, api_key=self.api_key)
+        try:
+            enabled_wfs = workflow.get_workflows()
+            return enabled_wfs
+        except Exception as err:
+            self.logger.error('Client exception occured')
+            utils.log_traceback(err)
+
+    def import_workflow(self, workflow_ids, files, file_type, parent_id=None):
+        import_wf = ImportWorkflow(base_url=self.base_url, api_key=self.api_key)
+        files_s3 = []
+        try:
+            for file in files['files']:
+                files_s3.append(upload.upload_file(file=file, file_type=file_type, parent_id=parent_id,
+                                                   api_key=self.api_key, base_url=self.base_url))
+            import_wf.import_workflow(workflow_ids, {'files':files_s3, 'file_name':files['sample_name']}, file_type, parent_id)
+        except UploadException as err:
+            self.logger.error('\nError occurred on File import: {}'.format(files))
             utils.log_traceback(err)
 
     def upload_files(self, files, file_type, parent_id=None):
@@ -111,13 +134,11 @@ class CosmosidApi(object):
             self.logger.error('Client exception occured')
             utils.log_traceback(err)
 
-    def report(self, file_id=None, run_id=None, output_file=None,
-               output_dir=None):
+    def report(self, file_id=None, output_file=None, output_dir=None):
         """Upload single file."""
         report = Reports(base_url=self.base_url,
                          api_key=self.api_key,
-                         file_id=file_id,
-                         run_id=run_id)
+                         file_id=file_id)
         try:
             file_obj = Files(base_url=self.base_url, api_key=self.api_key)
             res = file_obj.get_file(file_id=file_id)

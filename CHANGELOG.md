@@ -1,5 +1,26 @@
 # Changelog
 
+##[2.1.1]
+
+### Fixed
+1. Upload to home folder
+2. Wrong Api key when uploading to specific folder with `--parent` option
+
+
+##[2.1.0]
+
+### Changed
+
+1. `folder_id` parameter default value changed to None
+
+## [2.0.0]
+
+### Changed
+
+1. Workflow parameter added for file upload. See `cosmosid upload -h`
+2. Mandatory `--run_id` parameter added to retrieve analysis. See `cosmosid analysis -h`
+3. Redundant `--run_id` parameter removed from `cosmosid reports`.
+
 ## [1.0.9]
 
 ### Changed

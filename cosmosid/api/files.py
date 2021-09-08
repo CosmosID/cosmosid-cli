@@ -16,15 +16,56 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Files(object):
-    """Files tructure."""
-    __resource_path = '/api/metagenid/v2/files'
+    """Files structure."""
 
     def __init__(self, base_url=None, api_key=None):
         self.base_url = base_url
         self.logger = LOGGER
         self.auth_header = {'X-Api-Key': api_key}
-        self.request_url = '{}{}'.format(self.base_url,
-                                         self.__class__.__resource_path)
+        self.request_url = '{}{}'.format(self.base_url,'/api/metagenid/v3/dashboard')
+        self.request_url_files = '{}{}'.format(self.base_url,'/api/metagenid/v2/files')
+
+    def get_dashboard(self, parent_id):
+        params = {}
+        if parent_id:
+            params['folder_id'] = parent_id
+        result = {'items': [], 'total': 0, 'status': 1}
+        result_set = False
+        try:
+            response = requests.get(self.request_url, headers=self.auth_header, params=params)
+            if response.status_code == 400:
+                content = json.loads(response.text)
+                if content['error_code'] == 'NotUUID':
+                    raise NotFound('Invalid ID specified.')
+
+            if response.status_code == 404:
+                result = response.json()
+                result.update({'status': 0})
+                return result
+
+            if response.status_code == 403:
+                raise AuthenticationFailed(
+                    'Authentication Failed. Wrong API Key.')
+
+            response.raise_for_status()
+
+            if requests.codes.ok:
+                content = response.json()
+                if not result_set:
+                    result['status'] = 1
+                    result['is_public'] = content['is_public']
+                result['items'].extend(content['files'])
+                result['total'] += len(content['files'])
+
+            return result
+
+        except AuthenticationFailed as err:
+            utils.log_traceback(err)
+        except NotFound as err:
+            utils.log_traceback(err)
+        except requests.exceptions.RequestException as err:
+            self.logger.error('Error occurred during request')
+            utils.log_traceback(err)
 
     def get_list(self, parent_id=None, limit=1000):
         params = {'limit': limit, 'offset': 0}
@@ -34,7 +75,7 @@ class Files(object):
         result_set = False
         try:
             while True:
-                response = requests.get(self.request_url, headers=self.auth_header, params=params)
+                response = requests.get(self.request_url_files, headers=self.auth_header, params=params)
                 if response.status_code == 400:
                     content = json.loads(response.text)
                     if content['error_code'] == 'NotUUID':
@@ -76,7 +117,7 @@ class Files(object):
             utils.log_traceback(err)
 
     def get_file(self, file_id=None):
-        request_url = self.request_url + (("/" + file_id) if file_id else "")
+        request_url = self.request_url_files + (("/" + file_id) if file_id else "")
         results = {}
         try:
             results = requests.get(request_url, headers=self.auth_header)

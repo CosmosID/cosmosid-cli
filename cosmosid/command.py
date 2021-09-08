@@ -41,21 +41,19 @@ class Files(Lister):
     def take_action(self, parsed_args):
         """get json with items and prepare for output"""
         parent = utils.key_len(parsed_args.parent)
-        folder_content = self.app.cosmosid.directory_list(parent)
+        folder_content = self.app.cosmosid.dashboard(parent)
         content_type_map = {
             '1': 'Folder',
             '2': 'Metagenomics Sample',
             '3': 'MRSA Sample',
             '4': 'Listeria Sample',
             '5': 'Amplicon 16S Sample',
-            '6': 'Amplicon ITS Sample',
-            '7': 'Microbiome Standard'
+            '6': 'Amplicon ITS Sample'
         }
         header = ['type', 'name', 'id', 'status', 'reads', 'created']
         if folder_content:
             if not folder_content['items']:
-                LOGGER.info('\nFolder %s (id: %s) is empty',
-                            folder_content['name'], parent)
+                LOGGER.info(f'\nFolder {parent} is empty')
                 for_output = [[' ', ' ', ' ', ' ', ' ', ' ']]
                 return (header, for_output)
         else:
@@ -96,7 +94,7 @@ class Files(Lister):
             return inp
 
         field_maps = {
-            'type': ['content_type', 'str', _set_type],
+            'type': ['type', 'str', _set_type],
             'id': ['id', 'str', _del_none],
             'name': ['name', 'str', _del_none],
             'status': ['status', 'str', _del_none],
@@ -104,7 +102,6 @@ class Files(Lister):
             'created': ['created', 'str', _set_date]
         }
 
-        # we need just items for output
         items_data = [_convert(item) for item in folder_content['items']]
 
         # order regarding order parameters
@@ -118,8 +115,7 @@ class Files(Lister):
                        else _set_dim(item[field_maps[f][0]])
                        for f in header]
                       for item in items_data]
-        LOGGER.info('\nContent of the Folder %s (id: %s)',
-                    folder_content['name'], parent)
+        LOGGER.info(f'\nContent of the Folder {parent}')
         return (header, for_output)
 
 
@@ -160,25 +156,34 @@ class Upload(Command):
                             required=False,
                             type=str,
                             help='cosmosid parent folder ID for upload')
-        choice = {'metagenomics': 2, 'amplicon-16s': 5, 'amplicon-its': 6}
+        file_type_choice = {'metagenomics': 2, 'amplicon-16s': 5, 'amplicon-its': 6}
         parser.add_argument('--type', '-t',
                             action=ChoicesAction,
                             required=True,
-                            choices=choice,
+                            choices=file_type_choice,
                             type=str,
                             default=None,
                             help='Type of analysis for a file')
+
+        parser.add_argument("-wf", "--workflow",
+                            help="Workflow: taxa, amr_vir, functional, amplicon_16s, amplicon_its."
+                                 "To specify multiple worflows, define them coma separated without any additional symbols."
+                                 "For example: -wf amr_vir,taxa",
+                            type=str,
+                            default="taxa")
         parser.add_argument('--dir', '-d', action='store', required=False, type=str,
                             help='directory with files for upload e.g. cosmosid upload -d /path/my_dir')
+
         return parser
 
     def take_action(self, parsed_args):
         """Send files to analysis."""
 
         parent_id = parsed_args.parent if parsed_args.parent else None
-        parent_id = utils.key_len(parent_id, "ID")
         directory = parsed_args.dir if parsed_args.dir else None
         files = parsed_args.file if parsed_args.file else None
+        input_workflow = parsed_args.workflow
+        enabled_workflows = self.app.cosmosid.get_enabled_workflows()
 
         credits = self.app.cosmosid.profile()['credits']
 
@@ -201,6 +206,17 @@ class Upload(Command):
             else:
                 LOGGER.info("\nSpecified path {directory} is not a directory.".format(directory=directory))
                 return
+
+        workflow_ids = []
+        for wf in input_workflow.split(','):
+            try:
+                workflow_ids.append(list(filter(lambda x: x['name'] == wf, enabled_workflows))[0]['id'])
+            except IndexError as e:
+                print(f"'{wf}' workflow is not enabled")
+
+        if not workflow_ids:
+            raise RuntimeError(
+                f"All workflows from the given list '{input_workflow}' are not enabled, file(s) cannot be uploaded. Aborting.")
 
         pairs = []
         files = sorted(files)
@@ -243,10 +259,9 @@ class Upload(Command):
             # In case some file don't have pair, we get this file and upload it as single sample
             if len(pair.get('files')) == 1:
                 pair.update(sample_name=os.path.basename(pair.get('files')[0]))
-            LOGGER.info('File uploading is started: %s', pair)
-            file_id = self.app.cosmosid.upload_files(pair, parsed_args.type, parent_id)
+            LOGGER.info('\nFile uploading is started: %s', pair)
+            self.app.cosmosid.import_workflow(workflow_ids, pair, parsed_args.type, parent_id)
             LOGGER.info('\nFile %s has been sent to analysis.', pair)
-            LOGGER.info('Use File ID to get Analysis Result: %s', file_id)
         LOGGER.info('Task Done')
 
 
@@ -255,12 +270,11 @@ class Analysis(Lister):
 
     def get_parser(self, prog_name):
         parser = super(Analysis, self).get_parser(prog_name)
-        grp = parser.add_mutually_exclusive_group(required=True)
-        grp.add_argument('--id', '-i',
+        parser.add_argument('--id', '-i',
                          action='store',
                          type=str,
                          help='ID of a file')
-        grp.add_argument('--run_id', '-r',
+        parser.add_argument('--run_id', '-r',
                          action='store',
                          type=str,
                          help='ID of a sample run')
@@ -279,9 +293,10 @@ class Analysis(Lister):
         r_id = (utils.key_len(parsed_args.run_id, "ID")
                 if parsed_args.run_id
                 else None)
+        if not r_id:
+            raise Exception("Run id must be specified.")
         analysis_content = self.app.cosmosid.analysis_list(file_id=f_id,
                                                            run_id=r_id)
-
         header = ['id', 'database', 'strains', 'strains_filtered', 'status']
         if analysis_content:
             if not analysis_content['analysis']:
@@ -291,7 +306,7 @@ class Analysis(Lister):
                 for_output = [[' ', ' ', ' ', ' ', ' ']]
                 return (header, for_output)
         else:
-            raise Exception("Exception uccured.")
+            raise Exception("Exception occured.")
 
         def _set_date(inp):
             try:
@@ -366,11 +381,6 @@ class Reports(Command):
                             required=True,
                             type=str,
                             help='ID of cosmosid file.')
-        parser.add_argument('--run_id', '-r',
-                            action='store',
-                            required=False,
-                            type=str,
-                            help='ID of cosmosid sample run.')
         grp = parser.add_mutually_exclusive_group(required=False)
         grp.add_argument('--output', '-o',
                          action='store',
@@ -387,19 +397,10 @@ class Reports(Command):
     def take_action(self, parsed_args):
         """Save report to a given file."""
         f_id = utils.key_len(parsed_args.id, "ID") if parsed_args.id else None
-        r_id = (utils.key_len(parsed_args.run_id, "ID")
-                if parsed_args.run_id
-                else None)
+
         output_file = parsed_args.output if parsed_args.output else None
         output_dir = parsed_args.dir if parsed_args.dir else None
-        if not r_id:
-            LOGGER.info('Processing reports for the latest run of file %s ...',
-                        f_id)
-        else:
-            LOGGER.info('Processing reports for the run_id %s of file %s ...',
-                        r_id, f_id)
         response = self.app.cosmosid.report(file_id=f_id,
-                                            run_id=r_id,
                                             output_file=output_file,
                                             output_dir=output_dir)
         if response:

@@ -55,8 +55,8 @@ def convert_size(size):
         return '0B'
     size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
     index = int(math.floor(math.log(size, 1024)))
-    power = math.pow(1024, index)
-    size = round(size / power, 2)
+    power = math.pow(1000, index)
+    size = round(size / power, 3)
     return '{}{}'.format(size, size_name[index])
 
 

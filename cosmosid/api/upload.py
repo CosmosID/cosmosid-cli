@@ -171,10 +171,12 @@ def complete_multipart_upload(self, *args, **kwargs):
 
 def upload_file(**kwargs):
     """Upload manager."""
-    filename = kwargs.pop('file')
-    parent_id = kwargs.pop('parent_id', None)
+    filename = kwargs.get('file')
+    parent_id = kwargs.get('parent_id', None)
+    base_url = kwargs.get('base_url')
+    api_key = kwargs.get('api_key')
     multipart_chunksize = file_size = os.stat(filename)[6] #get size of file in bytes
-    client = kwargs['client']
+    client = create_client(base_url=base_url, api_key=api_key)
 
     if file_size > MULTIPART_THRESHOLD: #bigger that 1GB
         multipart_chunksize = min(int(file_size / 10), int(MAX_CHUNK_SIZE))
@@ -187,7 +189,7 @@ def upload_file(**kwargs):
     osutil = OSUtilsWithCallbacks()
     # Check if given parent folder exists
     if parent_id:
-        fl_obj = Files(base_url=kwargs['base_url'], api_key=kwargs['api_key'])
+        fl_obj = Files(base_url=base_url, api_key=api_key)
         res = fl_obj.get_list(parent_id=parent_id, limit=1)
         if not res['status']:
             raise NotFoundException('Parent folder for upload does '
@@ -259,7 +261,7 @@ def upload_and_save(files, parent_id, file_type, base_url, api_key):
     try:
         items = []
         for file_name in files['files']:
-            items.append(upload_file(client=client, file=file_name, file_type=file_type, parent_id=parent_id,
+            items.append(upload_file(file=file_name, file_type=file_type, parent_id=parent_id,
                                      api_key=api_key, base_url=base_url))
         data = dict(source=dict(type='web-upload', items=items),
                     sample_name=files['sample_name'],
