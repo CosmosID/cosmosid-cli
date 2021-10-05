@@ -1,5 +1,12 @@
 # Changelog
 
+##[2.1.2]
+
+### Changed
+
+1. Allowed support for python version `<4` (3.9).
+
+
 ##[2.1.1]
 
 ### Fixed

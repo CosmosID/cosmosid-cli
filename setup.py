@@ -38,7 +38,7 @@ setup(
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     packages=find_packages(exclude=['contrib', 'docs', '*tests*']),
-    python_requires='>=3.5, <3.9',
+    python_requires='>=3.5, <4',
     install_requires=_get_requirements(),
     package_data={
         'cosmosid': ['logger_config.yaml', ],
