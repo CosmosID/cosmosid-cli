@@ -152,25 +152,30 @@ The CosmosID CLI supports uploading multiple Single-Read and Paired-End samples.
 To upload all samples from folder run `cosmosid upload` command with path to folder specified by --dir/-d parameter 
 > Note: This command respects Paired-End samples grouping with the same rules as for regular upload 
 
+Use workflow parameter to run only specific ones: `taxa`, `amr_vir`, `functional`, `amplicon_16s`, `amplicon_its`.
+To specify multiple worflows, define them coma separated without any additional symbols.
+For example: `-wf amr_vir,taxa`
+
 Running example:
 
-cosmosid upload --type metagonomics -f /pathtofile/test1_R1.fastq -f /pathtofile/test1_R2.fastq -f  /pathtofile/test2.fasta
+cosmosid upload --type metagonomics -wf amr_vir,taxa -f /pathtofile/test1_R1.fastq -f /pathtofile/test1_R2.fastq -f  /pathtofile/test2.fasta
+
 ```shell
-#to upload one sample file for Metagenomics analysis
-cosmosid upload --file <path to file> --type metagenomics
+# to upload one sample file for Metagenomics analysis
+cosmosid upload --file <path to file> --type metagenomics -wf taxa
 
-#to upload sample file into specific folder for Amplicon 16s analysis
-cosmosid upload --file <path to file-1> --parent <folder id> --type amplicon-16s
+# to upload sample file into specific folder for Amplicon 16s analysis
+cosmosid upload --file <path to file-1> --parent <folder id> --type amplicon-16s  -wf amplicon_16s
 
-#to upload all files from folder 
-cosmosid upload -d /home/user/samples/ --type metagenomics
+# to upload all files from folder 
+cosmosid upload -d /home/user/samples/ --type metagenomics -wf taxa,functional
 ```
 
 > Note: uploading of a big file takes time, please be patient
 
 Once file has been uploaded to CosmosID the analyzing process will automatically begin.
 You can check the status of metagenomics analysis on the page [CosmosID Samples](https://app.cosmosid.com/samples).  
-Amplicon analysis results available only from CosmosID CLI for now.
+
 
 ### Retrieving Analysis Results
 
