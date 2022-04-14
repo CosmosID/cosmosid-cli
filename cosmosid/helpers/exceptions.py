@@ -20,8 +20,8 @@ class CosmosidException(Exception):
         :status_code - status code
         """
         exception = CosmosidException()
-        exception.name = dict_.get('error_code', '')
-        exception.message = dict_.get('message', '')
+        exception.name = dict_.get("error_code", "")
+        exception.message = dict_.get("message", "")
         exception.status_code = status_code
         exception.additional_data = dict_
         return exception
@@ -97,3 +97,24 @@ class ReportGenerationTimeout(CosmosidException):
     name = "Report"
     status_code = 400
     message = "Report generation timeout reached."
+
+
+class NotValidFileExtension(CosmosidException):
+    name = "fileExtension"
+    message = "Only zip extension is allowed"
+
+
+class CosmosidAuthException(CosmosidException):
+    def __init__(self, code_status):
+        if code_status == AuthenticationFailed.status_code:
+            return AuthenticationFailed
+        if code_status == NotFound.status_code:
+            return NotFound
+        if code_status == NotEnoughCredits.status_code:
+            return NotEnoughCredits
+        if code_status == StatusException.status_code:
+            return StatusException
+
+
+class WrongFlagException(CosmosidException):
+    pass

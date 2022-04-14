@@ -25,13 +25,13 @@ Commands:
   reports        Get analysis reports in TSV format.
   runs           Show List Of Runs for a given File.
   upload         Upload files to cosmosid.
+  artifacts      Show Artifacts for a given run.
 
 Usage example:
 $ ./cosmosid/cli.py --base_url https://example.com upload \
 -t metagenomics -f ~/1.5G.fasta --api_key my-key-...
 
 """
-
 
 
 import logging.config
@@ -44,8 +44,9 @@ from cliff.app import App
 from cliff.commandmanager import CommandManager
 from cliff.complete import CompleteCommand
 from cliff.help import HelpAction, HelpCommand
-from cosmosid.client import CosmosidApi
+
 from cosmosid import __version__
+from cosmosid.client import CosmosidApi
 
 
 class CosmosidApp(App):
@@ -55,25 +56,20 @@ class CosmosidApp(App):
         super(CosmosidApp, self).__init__(
             description="""Client for interacting with the CosmosID""",
             version=__version__,
-            command_manager=CommandManager('cosmosid'),
-            deferred_help=True)
+            command_manager=CommandManager("cosmosid"),
+            deferred_help=True,
+        )
         self.cosmosid = None
 
     def build_option_parser(self, description, version, argparse_kwargs=None):
         """CMD arguments parser."""
-        parser = super(CosmosidApp, self).build_option_parser(description,
-                                                              version,
-                                                              argparse_kwargs)
+        parser = super(CosmosidApp, self).build_option_parser(
+            description, version, argparse_kwargs
+        )
+        parser.add_argument("--api_key", default=False, required=False, help="api key")
         parser.add_argument(
-            '--api_key',
-            default=False,
-            required=False,
-            help='api key')
-        parser.add_argument(
-            '--base_url',
-            default=False,
-            required=False,
-            help='CosmosID API base url')
+            "--base_url", default=False, required=False, help="CosmosID API base url"
+        )
         return parser
 
     def _print_help(self):
@@ -95,30 +91,27 @@ class CosmosidApp(App):
 
     def prepare_to_run_command(self, cmd):
         super(CosmosidApp, self).prepare_to_run_command(cmd)
-        if (not isinstance(cmd, (HelpCommand, CompleteCommand))
-                and not self.cosmosid):
+        if not isinstance(cmd, (HelpCommand, CompleteCommand)) and not self.cosmosid:
             self.cosmosid = CosmosidApi(
-                api_key=self.options.api_key,
-                base_url=self.options.base_url
+                api_key=self.options.api_key, base_url=self.options.base_url
             )
 
     def run(self, argv):
-        result = super(CosmosidApp, self).run(argv)
-        return result
+        return super(CosmosidApp, self).run(argv)
 
 
 def main(argv=None):
     """Module entry-point."""
-    __location__ = os.path.realpath(os.path.join(os.getcwd(),
-                                                 os.path.dirname(__file__)))
-    log_conf = os.path.join(__location__, 'logger_config.yaml')
-    with open(log_conf, 'rt') as conf_fl:
+    __location__ = os.path.realpath(
+        os.path.join(os.getcwd(), os.path.dirname(__file__))
+    )
+    log_conf = os.path.join(__location__, "logger_config.yaml")
+    with open(log_conf, "rt") as conf_fl:
         config = yaml.safe_load(conf_fl.read())
     try:
-        log_file = config['handlers']['logfile']['filename']
+        log_file = config["handlers"]["logfile"]["filename"]
         temp_dir = tempfile.gettempdir()
-        config['handlers']['logfile']['filename'] = os.path.join(temp_dir,
-                                                                 log_file)
+        config["handlers"]["logfile"]["filename"] = os.path.join(temp_dir, log_file)
     except KeyError:
         pass
     logging.config.dictConfig(config)

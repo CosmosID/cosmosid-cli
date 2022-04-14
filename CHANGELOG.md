@@ -1,20 +1,33 @@
 # Changelog
 
-##[2.1.2]
+## [2.1.4]
+
+### Changed
+
+* The command [Artifacts](README.md#retrieving-artifacts-results) shows download progress.
+
+## [2.1.3]
+
+### Changed
+
+* Added new command [Artifacts](README.md#retrieving-artifacts-results) command (allows to get FastQC Zip artifacts)
+* Non-functional change: Errors handling changed.
+* Non-functional change: the project has been migrated to poetry.
+
+## [2.1.2]
 
 ### Changed
 
 1. Allowed support for python version `<4` (3.9).
 
-
-##[2.1.1]
+## [2.1.1]
 
 ### Fixed
+
 1. Upload to home folder
 2. Wrong Api key when uploading to specific folder with `--parent` option
 
-
-##[2.1.0]
+## [2.1.0]
 
 ### Changed
 
@@ -71,6 +84,7 @@
 ## [1.0.4]
 
 ### Changed
+
 1. Some endpoints moved to v2 in accordance with current application endpoints schema
 2. Code to support new endpoints
 3. Version of app moved to separate file
