@@ -27,20 +27,6 @@ class CosmosidException(Exception):
         return exception
 
 
-class MethodNotSupported(CosmosidException):
-    pass
-
-
-class PermissionDenied(CosmosidException):
-    pass
-
-
-class StatusException(CosmosidException):
-    name = "NoStatus"
-    status_code = 406
-    message = "Wrong status of dataset."
-
-
 class AuthenticationFailed(CosmosidException):
     name = "NoAuth"
     status_code = 403
@@ -53,23 +39,11 @@ class NotEnoughCredits(CosmosidException):
     message = "Insufficient credits for upload."
 
 
-class ServerError(CosmosidException):
-    pass
-
-
 class ValidationError(ValueError):
     pass
 
 
-class ValidationWarning(Warning):
-    pass
-
-
 class UploadException(Exception):
-    pass
-
-
-class ConnectionException(CosmosidException):
     pass
 
 
@@ -104,17 +78,21 @@ class NotValidFileExtension(CosmosidException):
     message = "Only zip extension is allowed"
 
 
-class CosmosidAuthException(CosmosidException):
-    def __init__(self, code_status):
-        if code_status == AuthenticationFailed.status_code:
-            return AuthenticationFailed
-        if code_status == NotFound.status_code:
-            return NotFound
-        if code_status == NotEnoughCredits.status_code:
-            return NotEnoughCredits
-        if code_status == StatusException.status_code:
-            return StatusException
-
-
 class WrongFlagException(CosmosidException):
+    pass
+
+
+class DownloadSamplesException(CosmosidException):
+    pass
+
+
+class DownloadError(Exception):
+    pass
+
+
+class RecoverableDownloadError(DownloadError):
+    pass
+
+
+class NonRecoverableDownloadError(DownloadError):
     pass

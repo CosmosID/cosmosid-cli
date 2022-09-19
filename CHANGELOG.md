@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.6]
+
+### Changed
+
+- (\*) The command [Download](README.md#download-original-samples) allows to download original samples.
+
+### Fixed
+
+- (\*) User bonuses balance can be used for an upload
+- (\*) Indicate workflow errors during the sample import
+
+## [2.1.5]
+(skip) Technical release
+
 ## [2.1.4]
 
 ### Changed

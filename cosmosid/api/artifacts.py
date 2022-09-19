@@ -1,16 +1,13 @@
 """Representation of Artifacts."""
 
-import contextlib
 import logging
 import os
 from os.path import isfile, split, splitext
 from urllib.parse import urlparse
 
 import requests
-
 from cosmosid.api.files import Runs
 from cosmosid.helpers.exceptions import (
-    CosmosidAuthException,
     CosmosidException,
     FileExistsException,
 )
@@ -36,8 +33,7 @@ class Artifacts(object):
     def get_artifacts(self, run_id):
         request_url = self.get_all_endpoint.format(run_id=run_id)
         results = requests.get(request_url, headers=self.header)
-        with contextlib.suppress(CosmosidAuthException):
-            return results.json()
+        return results.json()
 
     def get_artifacts_by_run_id(self, run_id, artifact_type):
         request_url = self.get_one_endpoint.format(
@@ -48,35 +44,30 @@ class Artifacts(object):
             raise CosmosidException(
                 f"Response from service is empty for run id {run_id}"
             )
-        with contextlib.suppress(CosmosidAuthException):
-            results = requests.get(request_url, headers=self.header)
-            return results.json()
+        results = requests.get(request_url, headers=self.header)
+        return results.json()
 
     def save_artifacts(self, url, output_file, output_dir, chunk_size=8192):
         # TODO: exception handling
         r = requests.get(url, stream=True)
-        total_size=r.headers['content-length']
-        with contextlib.suppress(CosmosidAuthException):
-            if output_file:
-                file_name, _ = splitext(output_file)
-                output_file = f"{file_name}.zip"
-            if not output_file:
-                parsed_url = urlparse(url)
-                _, output_file = split(parsed_url.path)
-            if not output_dir:
-                output_dir = os.getcwd()
-            file_full_path = f"{output_dir}/{output_file}"
-            if isfile(file_full_path):
-                raise FileExistsException(f"Destination File exists: {file_full_path}")
-            with open(file_full_path, "wb") as f:
-                i = 0
-                progress(i, total_size, f"Downloading...")
-                for chunk in r.iter_content(chunk_size=chunk_size):
-                    i+=1
-                    progress(i*chunk_size, total_size, f"Downloading...")
-                    f.write(chunk)
-                progress(1, 1, f"Completed.           \n")
-            return file_full_path
+        total_size = r.headers["content-length"]
+        if output_file:
+            file_name, _ = splitext(output_file)
+            output_file = f"{file_name}.zip"
+        if not output_file:
+            parsed_url = urlparse(url)
+            _, output_file = split(parsed_url.path)
+        if not output_dir:
+            output_dir = os.getcwd()
+        file_full_path = f"{output_dir}/{output_file}"
+        if isfile(file_full_path):
+            raise FileExistsException(f"Destination File exists: {file_full_path}")
+        with open(file_full_path, "wb") as f:
+            for i, chunk in enumerate(r.iter_content(chunk_size=chunk_size)):
+                progress(i * chunk_size, total_size, f"Downloading...")
+                f.write(chunk)
+            progress(1, 1, f"Completed.           \n")
+        return file_full_path
 
     def get_list(self, run_id=None, artifact_type=None):
 

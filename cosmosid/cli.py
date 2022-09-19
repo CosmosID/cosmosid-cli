@@ -1,38 +1,4 @@
 #!/usr/bin/env python
-"""Command Line Application.
-
-$ ./cosmosid/cli.py
-usage: cli.py [--version] [-v | -q] [--log-file LOG_FILE] [-h] [--debug]
-              [--api_key API_KEY] [--base_url BASE_URL] cmd
-
-Client for interacting with the CosmosID
-
-optional arguments:
-  --version            show program's version number and exit
-  -v, --verbose        Increase verbosity of output. Can be repeated.
-  -q, --quiet          Suppress output except warnings and errors.
-  --log-file LOG_FILE  Specify a file to log output. Disabled by default.
-  -h, --help           Show help message and exit.
-  --debug              Show tracebacks on errors.
-  --api_key API_KEY    api key
-  --base_url BASE_URL  CosmosID API base url
-
-Commands:
-  analysis       Show Analysis for a given file.
-  complete       print bash completion command
-  files          Show files in a given directory.
-  help           print detailed help for another command
-  reports        Get analysis reports in TSV format.
-  runs           Show List Of Runs for a given File.
-  upload         Upload files to cosmosid.
-  artifacts      Show Artifacts for a given run.
-
-Usage example:
-$ ./cosmosid/cli.py --base_url https://example.com upload \
--t metagenomics -f ~/1.5G.fasta --api_key my-key-...
-
-"""
-
 
 import logging.config
 import os
@@ -44,7 +10,6 @@ from cliff.app import App
 from cliff.commandmanager import CommandManager
 from cliff.complete import CompleteCommand
 from cliff.help import HelpAction, HelpCommand
-
 from cosmosid import __version__
 from cosmosid.client import CosmosidApi
 

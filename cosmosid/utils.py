@@ -70,7 +70,14 @@ def convert_date(date):
     return dt.fromtimestamp(local_time).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def retry(exception_to_check=Exception, tries=4, delay=3, backoff=2, logger=None):
+def retry(
+    exception_to_check=Exception,
+    tries=4,
+    delay=3,
+    backoff=2,
+    logger=None,
+    raise_error=False,
+):
     """Retry calling the decorated function using an exponential backoff.
 
     :param exception_to_check: the exception to check. may be a tuple of
@@ -89,23 +96,27 @@ def retry(exception_to_check=Exception, tries=4, delay=3, backoff=2, logger=None
     def deco_retry(func):
         @wraps(func)
         def f_retry(*args, **kwargs):
-            mtries, mdelay = tries, delay
-            while mtries > 1:
-                if do_not_retry_event.is_set():
-                    break
+            nonlocal delay
+
+            if do_not_retry_event.is_set():
+                return
+
+            exception = ValueError("tries must me positive number greater than 0!")
+            for _ in range(tries):
                 try:
                     return func(*args, **kwargs)
                 except KeyboardInterrupt:
-                    break
+                    return
                 except exception_to_check as error:
-                    msg = "\r%s, Retrying in %d seconds.." % (str(error), mdelay)
+                    msg = "\r%s, Retrying in %d seconds.." % (str(error), delay)
                     with LOCK:
                         sys.stdout.write(msg)
                         sys.stdout.flush()
-                    time.sleep(mdelay)
-                    mtries -= 1
-                    mdelay *= backoff
-            return func(*args, **kwargs)
+                    time.sleep(delay)
+                    delay *= backoff
+                    exception = error
+            if raise_error:
+                raise exception
 
         return f_retry  # true decorator
 
@@ -115,7 +126,6 @@ def retry(exception_to_check=Exception, tries=4, delay=3, backoff=2, logger=None
 def requests_retry_session(
     retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 504), session=None
 ):
-
     session = session or requests.Session()
     retry_handle = Retry(
         total=retries,

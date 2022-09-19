@@ -1,1 +1,3 @@
-__version__ = "2.1.4"
+from importlib_metadata import version
+
+__version__ = version('cosmosid_cli')

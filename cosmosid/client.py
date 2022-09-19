@@ -8,6 +8,7 @@ import cosmosid.utils as utils
 from cosmosid.api import auth
 from cosmosid.api.analysis import Analysis
 from cosmosid.api.artifacts import Artifacts
+from cosmosid.api.download import SamplesDownloader
 from cosmosid.api.files import Files, Runs
 from cosmosid.api.import_workflow import ImportWorkflow
 from cosmosid.api.reports import Reports
@@ -15,6 +16,7 @@ from cosmosid.api.workflow import Workflow
 from cosmosid.helpers.auth import ApiKeyAuth
 from cosmosid.helpers.exceptions import (
     CosmosidException,
+    DownloadSamplesException,
     NotFoundException,
     UploadException,
     ValidationError,
@@ -103,6 +105,8 @@ class CosmosidApi(object):
                         base_url=self.base_url,
                     )
                 )
+                self.logger.info(f'\r{file} was uploaded.' + ' ' * 30)
+
             import_wf.import_workflow(
                 workflow_ids,
                 {"files": files_s3, "file_name": files["sample_name"]},
@@ -134,6 +138,8 @@ class CosmosidApi(object):
 
     def analysis_list(self, file_id=None, run_id=None):
         """Get list of analysis for a given file id."""
+        if not file_id:
+            raise CosmosidException('Wrong file id')
         analysis = Analysis(base_url=self.base_url, api_key=self.api_key)
         try:
             analysis_list = analysis.get_list(file_id=file_id, run_id=run_id)
@@ -144,7 +150,7 @@ class CosmosidApi(object):
                     raise NotFoundException(analysis_list["message"])
             else:
                 raise CosmosidException(
-                    "Error occurred on get list of " "analysis for a File: %s" % file_id
+                    "Error occurred on getting list of analysis for a File: %s" % file_id
                 )
         except NotFoundException as err:
             self.logger.error("NotFound")
@@ -267,8 +273,28 @@ class CosmosidApi(object):
     def profile(self):
         """ "Get profile information for current user"""
         try:
-            return auth.get_profile(self.base_url, self.api_key)
+            return auth.get_profile(self.base_url, {"X-Api-Key": self.api_key})
         except Exception as err:
             self.logger.error("Client exception occurred")
             utils.log_traceback(err)
             raise
+
+    def download_samples(
+        self, samples, concurrent_downloads, display_loading=True, output_dir=None
+    ):
+        try:
+            original_samples = SamplesDownloader(
+                base_url=self.base_url, api_key=self.api_key
+            )
+
+            file_paths = original_samples.download_samples(
+                samples, output_dir, concurrent_downloads, display_loading
+            )
+            if file_paths:
+                file_paths_text = "\n".join(file_paths)
+                LOGGER.info(f"\nFiles were saved:\n{file_paths_text}\n\nTask Done")
+            else:
+                LOGGER.error(f"\nThere are not available files for downloading")
+            return "", ""
+        except Exception as err:
+            raise DownloadSamplesException(f"{err}") from err

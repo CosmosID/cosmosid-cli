@@ -4,10 +4,11 @@ import logging
 import os
 import re
 import time
+import uuid
 from datetime import datetime as dt
 from operator import itemgetter
 from os import listdir
-from os.path import expanduser, isdir, isfile, join, normpath, split, splitext
+from os.path import expanduser, isdir, isfile, join, normpath, split
 from pathlib import Path
 
 from cliff.command import Command
@@ -21,6 +22,12 @@ from cosmosid.helpers.exceptions import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+def validate_uuid(param):
+    try:
+        return str(uuid.UUID(param))
+    except Exception:
+        raise argparse.ArgumentTypeError("Not a valid UUID!")
 
 
 class ChoicesAction(argparse.Action):
@@ -211,8 +218,8 @@ class Upload(Command):
             "-wf",
             "--workflow",
             help="Workflow: taxa, amr_vir, functional, amplicon_16s, amplicon_its."
-            "To specify multiple worflows, define them coma separated without any additional symbols."
-            "For example: -wf amr_vir,taxa",
+                 "To specify multiple workflows, define them coma separated without any additional symbols."
+                 "For example: -wf amr_vir,taxa",
             type=str,
             default="taxa",
         )
@@ -236,10 +243,11 @@ class Upload(Command):
         input_workflow = parsed_args.workflow
         enabled_workflows = self.app.cosmosid.get_enabled_workflows()
 
-        credits = self.app.cosmosid.profile()["credits"]
+        profile = self.app.cosmosid.profile()
+        balance = profile.get("credits", 0) + profile.get("bonuses", 0)
 
-        if credits <= 0:
-            LOGGER.info("\nYou don't have enough credits to run analysis")
+        if balance <= 0:
+            LOGGER.info("\nYou don't have enough credits and bonuses to run analysis")
             return
 
         if (files and directory) or (not files and not directory):
@@ -278,8 +286,8 @@ class Upload(Command):
                 workflow_ids.append(
                     list(filter(lambda x: x["name"] == wf, enabled_workflows))[0]["id"]
                 )
-            except IndexError as e:
-                print(f"'{wf}' workflow is not enabled")
+            except IndexError:
+                LOGGER.error(f"'{wf}' workflow is not enabled")
 
         if not workflow_ids:
             raise RuntimeError(
@@ -334,19 +342,19 @@ class Upload(Command):
 
         for price in self.app.cosmosid.pricing(data=pricing_req):
             cost += price["pricing"][str(parsed_args.type)]
-        if cost > credits:
-            LOGGER.info("\nYou don't have enough credits to run analysis")
+        if cost > balance:
+            LOGGER.info("\nYou don't have enough credits and bonuses to run analysis")
             return
 
+        LOGGER.info("\nFiles uploading is started")
         for pair in pairs:
             # In case some file don't have pair, we get this file and upload it as single sample
             if len(pair.get("files")) == 1:
                 pair.update(sample_name=os.path.basename(pair.get("files")[0]))
-            LOGGER.info("\nFile uploading is started: %s", pair)
             self.app.cosmosid.import_workflow(
                 workflow_ids, pair, parsed_args.type, parent_id
             )
-            LOGGER.info("\nFile %s has been sent to analysis.", pair)
+        LOGGER.info("\nFiles have been sent to analysis.")
         LOGGER.info("Task Done")
 
 
@@ -355,9 +363,9 @@ class Analysis(Lister):
 
     def get_parser(self, prog_name):
         parser = super(Analysis, self).get_parser(prog_name)
-        parser.add_argument("--id", "-i", action="store", type=str, help="ID of a file")
+        parser.add_argument("--id", "-i", action="store", type=validate_uuid, help="ID of a file")
         parser.add_argument(
-            "--run_id", "-r", action="store", type=str, help="ID of a sample run"
+            "--run_id", "-r", action="store", type=validate_uuid, help="ID of a sample run"
         )
         parser.add_argument(
             "--order",
@@ -375,8 +383,13 @@ class Analysis(Lister):
         """get json with analysis for a file and prepare for output"""
         f_id = utils.key_len(parsed_args.id, "ID") if parsed_args.id else None
         r_id = utils.key_len(parsed_args.run_id, "ID") if parsed_args.run_id else None
+        
+        if not f_id:
+            raise Exception("File id must be specified.")
+
         if not r_id:
             raise Exception("Run id must be specified.")
+        
         analysis_content = self.app.cosmosid.analysis_list(file_id=f_id, run_id=r_id)
         header = ["id", "database", "strains", "strains_filtered", "status"]
         if analysis_content:
@@ -472,8 +485,8 @@ class Reports(Command):
             "-i",
             action="store",
             required=True,
-            type=str,
-            help="ID of cosmosid file.",
+            type=validate_uuid,
+            help="ID of cosmosid sample.",
         )
         grp = parser.add_mutually_exclusive_group(required=False)
         grp.add_argument(
@@ -516,7 +529,7 @@ class Runs(Lister):
     def get_parser(self, prog_name):
         parser = super(Runs, self).get_parser(prog_name)
         parser.add_argument(
-            "--id", "-i", type=str, required=True, help="ID of the file"
+            "--id", "-i", type=validate_uuid, required=True, help="ID of the sample"
         )
         parser.add_argument(
             "--order",
@@ -543,7 +556,7 @@ class Runs(Lister):
         if runs:
             if not runs["runs"]:
                 LOGGER.info(
-                    "\nThere are no runs for file %s (id: %s)", runs["file_name"], ids
+                    "\nThere are no runs for sample %s (id: %s)", runs["file_name"], ids
                 )
 
                 for_output = [[" ", " ", " "]]
@@ -604,7 +617,7 @@ class Artifacts(Lister):
             "--run_id",
             "-r",
             action="store",
-            type=str,
+            type=validate_uuid,
             help="ID of a sample run",
             required=True,
         )
@@ -673,4 +686,64 @@ class Artifacts(Lister):
             output_file=output_file,
             output_dir=output_dir,
             url=parsed_args.url,
+        )
+
+
+class Samples(Lister):
+    """Download Samples for a given samples ids."""
+
+    def get_parser(self, prog_name):
+        parser = super(Samples, self).get_parser(prog_name)
+        parser.add_argument(
+            "--samples_ids",
+            "-s",
+            action="store",
+            type=lambda s: [validate_uuid(i) for i in re.split(",", s)],
+            help="Comma separated list of samples uuids",
+            required=True,
+        )
+
+        parser.add_argument(
+            "--dir",
+            "-d",
+            action="store",
+            type=str,
+            default=None,
+            help="Output directory for a file. Default: is current directory.",
+        )
+        parser.add_argument(
+            "--no-display",
+            action="store_true",
+            default=False,
+            help="Disable displaying loading process",
+        )
+        parser.add_argument(
+            "--concurrent-downloads",
+            action="store",
+            type=int,
+            default=None,
+            help="Limit concurrent files downloads",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        """get  with artifacts for a file and prepare for output"""
+        samples = [
+            utils.key_len(samples_id, "ID") for samples_id in parsed_args.samples_ids
+        ]
+        output_dir = parsed_args.dir
+        if output_dir:
+            output_dir = expanduser(normpath(output_dir))
+            if not isdir(output_dir):
+                raise NotFoundException(
+                    f"Destination directory does not exist: {output_dir}"
+                )
+        if not output_dir:
+            output_dir = os.getcwd()
+
+        return self.app.cosmosid.download_samples(
+            samples or [],
+            parsed_args.concurrent_downloads,
+            not parsed_args.no_display,
+            output_dir,
         )

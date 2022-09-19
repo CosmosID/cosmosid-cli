@@ -1,6 +1,7 @@
 # Cosmos ID
 
  Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API. Only works with Python [3.6,3.7,3.8,3.9,3.10].
+
 ## Requirements
 
 ### OS Packages
@@ -174,7 +175,7 @@ To upload all samples from folder run `cosmosid upload` command with path to fol
 
 Running example:
 
-cosmosid upload --type metagonomics -f /pathtofile/test1_R1.fastq -f /pathtofile/test1_R2.fastq -f  /pathtofile/test2.fasta
+`cosmosid upload --type metagenomics -f /pathtofile/test1_R1.fastq` -f /pathtofile/test1_R2.fastq -f  /pathtofile/test2.fasta
 
 ```shell
 #to upload one sample file for Metagenomics analysis
@@ -258,3 +259,33 @@ cosmosid artifacts --run_id=<run ID> --type=fastqc-zip --dir /home/user --output
 #to get url to download the archive
 cosmosid artifacts --run_id=<run ID> --type=fastqc-zip --url
 ```
+
+### Download Original Samples
+
+Original samples can be downloaded from CosmosID by using  samples_ids.
+To download samples for a specified samples_id in CosmosID simply run `cosmosids` command with `download` subcommand.
+
+> Note: We recommend installing pycurl for the best experience with a sample download, 
+> see: http://pycurl.io/docs/latest/index.html#installation
+
+For example:
+```shell
+
+#to download the original samples and save them in the current dir
+cosmosid download --samples_ids=<sample_id>
+
+#to download the originals samples and save them in the current dir
+cosmosid download --samples_ids=<sample_id>,<sample_id> #separated by comma ","
+
+#to download the originals samples and store them in the given path
+cosmosid download --samples_ids=<sample_id>,<sample_id> --dir=<path_to_directory>
+
+#to download the originals samples without displaying download progress
+cosmosid download --samples_ids=<samples_id>,<sample_id> --no-display
+
+#to download the original samples with specified quantity of concurrent files downloads
+cosmosid download --samples_ids=<sample_id>,<sample_id> --concurrent-downloads=<quantity>
+
+```
+
+> Note: You can specify chunk size by CHUNK_SIZE environment variable
