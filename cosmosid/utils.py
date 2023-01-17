@@ -6,14 +6,14 @@ import sys
 import threading
 import time
 import traceback
+import typing
 from datetime import datetime as dt
 from functools import wraps
 
 import requests
+from cosmosid.helpers.exceptions import ValidationError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-
-from cosmosid.helpers.exceptions import ValidationError
 
 do_not_retry_event = threading.Event()
 LOCK = threading.Lock()
@@ -71,12 +71,12 @@ def convert_date(date):
 
 
 def retry(
-    exception_to_check=Exception,
-    tries=4,
-    delay=3,
-    backoff=2,
-    logger=None,
-    raise_error=False,
+        exception_to_check=Exception,
+        tries=4,
+        delay=3,
+        backoff=2,
+        logger=None,
+        raise_error=False,
 ):
     """Retry calling the decorated function using an exponential backoff.
 
@@ -101,14 +101,16 @@ def retry(
             if do_not_retry_event.is_set():
                 return
 
-            exception = ValueError("tries must me positive number greater than 0!")
+            exception = ValueError(
+                "tries must me positive number greater than 0!")
             for _ in range(tries):
                 try:
                     return func(*args, **kwargs)
                 except KeyboardInterrupt:
                     return
                 except exception_to_check as error:
-                    msg = "\r%s, Retrying in %d seconds.." % (str(error), delay)
+                    msg = "\r%s, Retrying in %d seconds.." % (
+                        str(error), delay)
                     with LOCK:
                         sys.stdout.write(msg)
                         sys.stdout.flush()
@@ -124,7 +126,7 @@ def retry(
 
 
 def requests_retry_session(
-    retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 504), session=None
+        retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 504), session=None
 ):
     session = session or requests.Session()
     retry_handle = Retry(
@@ -147,3 +149,32 @@ def progress(count, total, status=""):
     bar = "=" * completed + "-" * (length - completed)
     sys.stdout.write("[%s] %s%s ...%s\r" % (bar, percents, "%", status))
     sys.stdout.flush()
+
+
+def get_valid_name(value, allowed_exta='_-.'):
+    res = ''
+    add_underscore = False
+    for symbol in value:
+        if symbol.isalnum() or symbol in allowed_exta:
+            if add_underscore:
+                add_underscore = False
+                if res and res[-1] not in allowed_exta and symbol not in allowed_exta:
+                    res += '_'
+            res += symbol
+        elif res[-1] not in allowed_exta:
+            add_underscore = True
+    return res
+
+
+def get_table_from_json(data: typing.List[typing.Dict], columns=None, default=''):
+    if columns is None:
+        columns = list(data[0].keys())
+    return (
+        columns,
+        (
+            [
+                [rec.get(column, default) for column in columns]
+                for rec in data
+            ]
+        )
+    )

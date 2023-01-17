@@ -49,7 +49,8 @@ class Files(object):
                 return result
 
             if response.status_code == 403:
-                raise AuthenticationFailed("Authentication Failed. Wrong API Key.")
+                raise AuthenticationFailed(
+                    "Authentication Failed. Wrong API Key.")
 
             response.raise_for_status()
 
@@ -93,7 +94,8 @@ class Files(object):
                     return result
 
                 if response.status_code == 403:
-                    raise AuthenticationFailed("Authentication Failed. Wrong API Key.")
+                    raise AuthenticationFailed(
+                        "Authentication Failed. Wrong API Key.")
 
                 response.raise_for_status()
 
@@ -105,7 +107,8 @@ class Files(object):
                         result["is_public"] = content["is_public"]
                         result["breadcrumbs"] = content["breadcrumbs"]
                     # microbiom standard doesn't have an export
-                    items = [i for i in content["items"] if i["content_type"] != 7]
+                    items = [i for i in content["items"]
+                             if i["content_type"] != 7]
                     result["items"].extend(items)
                     result["total"] += len(items)
                     if content["total"] < limit:
@@ -122,7 +125,8 @@ class Files(object):
             utils.log_traceback(err)
 
     def get_file(self, file_id=None):
-        request_url = self.request_url_files + (f"/{file_id}" if file_id else "")
+        request_url = self.request_url_files + \
+            (f"/{file_id}" if file_id else "")
         results = {}
         try:
             results = requests.get(request_url, headers=self.auth_header)
@@ -136,7 +140,8 @@ class Files(object):
                 results.update({"status": 0})
                 return results
             if results.status_code == 403:
-                raise AuthenticationFailed("Authentication Failed. Wrong API Key.")
+                raise AuthenticationFailed(
+                    "Authentication Failed. Wrong API Key.")
             results.raise_for_status()
             if requests.codes.ok:
                 results = results.json()["items"].pop()
@@ -201,7 +206,8 @@ class Runs(Files):
                 results.update({"status": 0})
                 return results
             if results.status_code == 403:
-                raise AuthenticationFailed("Authentication Failed. " "Wrong API Key.")
+                raise AuthenticationFailed(
+                    "Authentication Failed. " "Wrong API Key.")
             results.raise_for_status()
             if requests.codes.ok:
                 results = results.json()
@@ -244,7 +250,8 @@ class Runs(Files):
                 results.update({"file_name": file_metadata["name"]})
                 return results
             if results.status_code == 403:
-                raise AuthenticationFailed("Authentication Failed. Wrong API Key.")
+                raise AuthenticationFailed(
+                    "Authentication Failed. Wrong API Key.")
             results.raise_for_status()
             if requests.codes.ok:
                 results = results.json()

@@ -8,6 +8,7 @@ import cosmosid.utils as utils
 from cosmosid.api import auth
 from cosmosid.api.analysis import Analysis
 from cosmosid.api.artifacts import Artifacts
+from cosmosid.api.comparative_analyses import ComparativeAnalyses
 from cosmosid.api.download import SamplesDownloader
 from cosmosid.api.files import Files, Runs
 from cosmosid.api.import_workflow import ImportWorkflow
@@ -22,8 +23,6 @@ from cosmosid.helpers.exceptions import (
     ValidationError,
 )
 
-LOGGER = logging.getLogger(__name__)
-
 
 class CosmosidApi(object):
     """
@@ -31,7 +30,6 @@ class CosmosidApi(object):
     """
 
     logger = logging.getLogger(__name__)
-
     BASE_URL = "https://app.cosmosid.com"
 
     def __init__(self, api_key=None, base_url=BASE_URL):
@@ -45,6 +43,8 @@ class CosmosidApi(object):
         base_url = base_url or self.BASE_URL
         if base_url != self.BASE_URL:
             self.logger.info("Using base URL: %s", base_url)
+        if not base_url.startswith('http'):
+            base_url = f'https://{base_url}'
         self.base_url = base_url
         self.api_key = api_key
 
@@ -72,7 +72,8 @@ class CosmosidApi(object):
                     raise NotFoundException(res["message"])
             else:
                 raise CosmosidException(
-                    "Response from service is empty " "for directory {}".format(parent)
+                    "Response from service is empty " "for directory {}".format(
+                        parent)
                 )
         except NotFoundException as err:
             utils.log_traceback(err)
@@ -92,7 +93,8 @@ class CosmosidApi(object):
             utils.log_traceback(err)
 
     def import_workflow(self, workflow_ids, files, file_type, parent_id=None):
-        import_wf = ImportWorkflow(base_url=self.base_url, api_key=self.api_key)
+        import_wf = ImportWorkflow(
+            base_url=self.base_url, api_key=self.api_key)
         files_s3 = []
         try:
             for file in files["files"]:
@@ -114,7 +116,8 @@ class CosmosidApi(object):
                 parent_id,
             )
         except UploadException as err:
-            self.logger.error("\nError occurred on File import: {}".format(files))
+            self.logger.error(
+                "\nError occurred on File import: {}".format(files))
             utils.log_traceback(err)
 
     def upload_files(self, files, file_type, parent_id=None):
@@ -163,12 +166,12 @@ class CosmosidApi(object):
             utils.log_traceback(err)
 
     def artifacts_list(
-        self,
-        run_id=None,
-        artifact_type=None,
-        output_file=None,
-        output_dir=None,
-        url=None,
+            self,
+            run_id=None,
+            artifact_type=None,
+            output_file=None,
+            output_dir=None,
+            url=None,
     ):
         """Get list of artifact for a given file id."""
         artifacts = Artifacts(base_url=self.base_url, api_key=self.api_key)
@@ -177,7 +180,11 @@ class CosmosidApi(object):
         )
         if not artifacts_content:
             raise Exception("Exception occurred.")
-
+        if 'data' not in artifacts_content.keys():
+            if artifacts_content.get('message'):
+                raise Exception(artifacts_content['message'])
+            raise Exception("No data.")
+            
         if url:
             sys.stdout.write(artifacts_content["data"])
             sys.stdout.flush()
@@ -191,8 +198,8 @@ class CosmosidApi(object):
 
             if not result:
                 raise Exception("Exception occurred during artifact creation.")
-            LOGGER.info(f"Artifact has been saved to: {result}")
-            LOGGER.info(f"Task Done")
+            self.logger.info(f"Artifact has been saved to: {result}")
+            self.logger.info("Task Done")
             return ("", "")
 
         if run_id and artifact_type is None:
@@ -202,17 +209,19 @@ class CosmosidApi(object):
                 raise Exception("Exception occurred.")
 
             if not artifacts_content["artifacts"]:
-                LOGGER.info(
+                self.logger.info(
                     f"\nThere are no artifacts for run id {artifacts_content['run_id']}"
                 )
                 return (header, [[" " for _ in range(len(header))]])
 
-            body = [[i["artifact_type"]] for i in artifacts_content["artifacts"]]
+            body = [[i["artifact_type"]]
+                    for i in artifacts_content["artifacts"]]
             return (header, body)
 
     def report(self, file_id=None, output_file=None, output_dir=None):
         """Upload single file."""
-        report = Reports(base_url=self.base_url, api_key=self.api_key, file_id=file_id)
+        report = Reports(base_url=self.base_url,
+                         api_key=self.api_key, file_id=file_id)
         try:
             file_obj = Files(base_url=self.base_url, api_key=self.api_key)
             res = file_obj.get_file(file_id=file_id)
@@ -221,11 +230,13 @@ class CosmosidApi(object):
                     f"Response from service is empty for file id {file_id}"
                 )
 
-            results = report.save_report(out_file=output_file, out_dir=output_dir)
+            results = report.save_report(
+                out_file=output_file, out_dir=output_dir)
             if results["status"]:
                 return results
             else:
-                raise CosmosidException(f'{results["message"]} File id: {file_id}')
+                raise CosmosidException(
+                    f'{results["message"]} File id: {file_id}')
         except CosmosidException as err:
             self.logger.error("Save report error")
             utils.log_traceback(err)
@@ -280,7 +291,7 @@ class CosmosidApi(object):
             raise
 
     def download_samples(
-        self, samples, concurrent_downloads, display_loading=True, output_dir=None
+            self, samples, concurrent_downloads, display_loading=True, output_dir=None
     ):
         try:
             original_samples = SamplesDownloader(
@@ -292,9 +303,38 @@ class CosmosidApi(object):
             )
             if file_paths:
                 file_paths_text = "\n".join(file_paths)
-                LOGGER.info(f"\nFiles were saved:\n{file_paths_text}\n\nTask Done")
+                self.logger.info(
+                    f"\nFiles were saved:\n{file_paths_text}\n\nTask Done")
             else:
-                LOGGER.error(f"\nThere are not available files for downloading")
+                self.logger.error(
+                    "\nThere are not available files for downloading")
             return "", ""
         except Exception as err:
             raise DownloadSamplesException(f"{err}") from err
+
+    def get_analyses(self, comparative_ids):
+        if comparative_ids:
+            return ComparativeAnalyses(
+                self.base_url, self.api_key
+            ).get_analyses_of_comparative(self.profile()['id'], comparative_ids)
+        return ComparativeAnalyses(self.base_url, self.api_key).get_analyses_out_of_comparatives()
+
+    def get_comparatives(self):
+        return ComparativeAnalyses(self.base_url, self.api_key).get_comparatives(self.profile()['id'])
+
+    def export_analyses(self,
+                        analyses_ids,
+                        export_types,
+                        concurrent_downloads,
+                        output_dir,
+                        log_scale,
+                        tax_levels
+                        ):
+        return ComparativeAnalyses(self.base_url, self.api_key).export_analyses(
+            analyses_ids,
+            export_types,
+            concurrent_downloads,
+            output_dir,
+            log_scale,
+            tax_levels
+        )

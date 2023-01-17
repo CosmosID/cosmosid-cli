@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import logging.config
 import os
 import sys
@@ -16,6 +15,7 @@ from cosmosid.client import CosmosidApi
 
 class CosmosidApp(App):
     """Command line interface based on openstack/cliff."""
+    logger = logging.getLogger(__name__)
 
     def __init__(self):
         super(CosmosidApp, self).__init__(
@@ -28,9 +28,7 @@ class CosmosidApp(App):
 
     def build_option_parser(self, description, version, argparse_kwargs=None):
         """CMD arguments parser."""
-        parser = super(CosmosidApp, self).build_option_parser(
-            description, version, argparse_kwargs
-        )
+        parser = super(CosmosidApp, self).build_option_parser(description, version, argparse_kwargs)
         parser.add_argument("--api_key", default=False, required=False, help="api key")
         parser.add_argument(
             "--base_url", default=False, required=False, help="CosmosID API base url"
@@ -56,13 +54,12 @@ class CosmosidApp(App):
 
     def prepare_to_run_command(self, cmd):
         super(CosmosidApp, self).prepare_to_run_command(cmd)
+        if self.options.base_url and not self.options.base_url.startswith('http'):
+            self.options.base_url = 'https://' + self.options.base_url
         if not isinstance(cmd, (HelpCommand, CompleteCommand)) and not self.cosmosid:
             self.cosmosid = CosmosidApi(
                 api_key=self.options.api_key, base_url=self.options.base_url
             )
-
-    def run(self, argv):
-        return super(CosmosidApp, self).run(argv)
 
 
 def main(argv=None):

@@ -96,3 +96,7 @@ class RecoverableDownloadError(DownloadError):
 
 class NonRecoverableDownloadError(DownloadError):
     pass
+
+
+class RangeNotSatisfiableError(DownloadError):
+    pass

@@ -6,6 +6,7 @@ from requests import Session, Timeout
 from cosmosid.helpers.exceptions import (
     NonRecoverableDownloadError,
     RecoverableDownloadError,
+    RangeNotSatisfiableError,
 )
 from cosmosid.helpers.thread_logger import ThreadLogger
 from cosmosid.utils import retry
@@ -30,9 +31,6 @@ class Downloader:
 
     @staticmethod
     def _validate(filepath, real_size, expected_size):
-        if not expected_size:
-            raise ValueError("Expected file size cannot be 0!")
-
         if expected_size == real_size:
             # TODO: it would be better to check hash sum
             raise FileExistsError(f"Destination File exists: {filepath}")
@@ -41,7 +39,9 @@ class Downloader:
     def _check_status_code(status_code):
         if 500 <= status_code < 600:
             raise RecoverableDownloadError
-        if 400 <= status_code < 500:
+        elif status_code == 416:
+            raise RangeNotSatisfiableError
+        elif 400 <= status_code < 500:
             raise NonRecoverableDownloadError
 
     @classmethod
@@ -117,7 +117,10 @@ class Downloader:
         with Session() as session:
             headers = {"Range": "bytes=%d-" % real_file_size}
             r = session.get(url, headers=headers, timeout=3, stream=True)
-            cls._check_status_code(r.status_code)
+            try:
+                cls._check_status_code(r.status_code)
+            except RangeNotSatisfiableError:
+                raise FileExistsError()
             total_size = float(r.headers["content-length"])
             thread_logger = ThreadLogger()
             with open(
@@ -134,6 +137,8 @@ class Downloader:
                             )
                         file.write(chunk)
                     thread_logger.info(filename, "Completed.")
+                except RangeNotSatisfiableError:
+                    return
                 except Timeout:
                     raise RecoverableDownloadError
                 except Exception:

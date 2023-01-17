@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cosmosid_cli"
-version = "2.1.6"
+version = "2.1.8"
 description = "Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API"
 authors = ["CosmosID <support@cosmosid.com>"]
 readme = "README.md"
@@ -25,11 +25,6 @@ classifiers = [
 "Bug Tracker" = "https://github.com/CosmosID/cosmosid-cli/issues"
 Changelog = "https://github.com/CosmosID/cosmosid-cli/blob/master/CHANGELOG.md"
 
-[[tool.poetry.source]]
-name = 'cosmosid_private_pip'
-url = 'https://registry.cosmosid.com/repository/pypi/simple/'
-secondary = true
-
 [tool.poetry.dependencies]
 python = ">=3.6.2, <4"
 requests = ">=2.27.1"
@@ -50,7 +45,6 @@ pytest = "*"
 pytest-cov = "*"
 pylint = "*"
 
-
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
@@ -65,10 +59,13 @@ line_length = 88
 cosmosid = "cosmosid.cli:main"
 
 [tool.poetry.plugins."cosmosid"]
-files = "cosmosid.command:Files"
-runs = "cosmosid.command:Runs"
-analysis = "cosmosid.command:Analysis"
-upload = "cosmosid.command:Upload"
-reports = "cosmosid.command:Reports"
-artifacts = "cosmosid.command:Artifacts"
-downloads = "cosmosid.command:Samples"
+files = "cosmosid.commands.files:Files"
+runs = "cosmosid.commands.runs:Runs"
+analysis = "cosmosid.commands.analysis:Analysis"
+upload = "cosmosid.commands.upload:Upload"
+reports = "cosmosid.commands.reports:Reports"
+artifacts = "cosmosid.commands.artifacts:Artifacts"
+downloads = "cosmosid.commands.downloads:Downloads"
+comparatives = "cosmosid.commands.comparatives:Comparatives"
+comparative_analyses = "cosmosid.commands.comparative_analyses:ComparativeAnalyses"
+comparative_analyses_export = "cosmosid.commands.comparative_analyses_export:ComparativeAnalysesExport"

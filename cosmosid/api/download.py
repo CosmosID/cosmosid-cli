@@ -4,9 +4,8 @@ Representation of folder structure.
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from importlib.util import find_spec
 from logging import getLogger
-from os.path import basename, join
+from os.path import join
 from typing import List, Tuple
-from urllib.parse import urlparse
 
 from requests import post
 
@@ -133,9 +132,13 @@ We recommend installing pycurl for the best experience with a sample download, s
                     for file in files
                 }
                 for future in as_completed(future_to_url):
-                    filepath = future.result()
-                    if filepath:
-                        files_paths.append(filepath)
+                    error = future.exception(1)
+                    if error is None:
+                        filepath = future.result()
+                        if filepath:
+                            files_paths.append(filepath)
+                    else:
+                        logger.error(error)
             if display_loading:
                 ThreadLogger().stop()
             return files_paths

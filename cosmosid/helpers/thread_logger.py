@@ -51,7 +51,7 @@ class ThreadLogger:
         stdout.write(
             ("\r" + " " * self._max_line_length + "\n") * self._prev_lines_amount
         )
-        stdout.write(f"\033[F" * self._prev_lines_amount)
+        stdout.write("\033[F" * self._prev_lines_amount)
 
     def _print_process(self):
         while self._enabled:

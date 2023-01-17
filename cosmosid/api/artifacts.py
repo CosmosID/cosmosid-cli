@@ -64,9 +64,9 @@ class Artifacts(object):
             raise FileExistsException(f"Destination File exists: {file_full_path}")
         with open(file_full_path, "wb") as f:
             for i, chunk in enumerate(r.iter_content(chunk_size=chunk_size)):
-                progress(i * chunk_size, total_size, f"Downloading...")
+                progress(i * chunk_size, total_size, "Downloading...")
                 f.write(chunk)
-            progress(1, 1, f"Completed.           \n")
+            progress(1, 1, "Completed.           \n")
         return file_full_path
 
     def get_list(self, run_id=None, artifact_type=None):
