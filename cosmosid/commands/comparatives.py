@@ -1,13 +1,17 @@
 from cliff.lister import Lister
 from cosmosid import utils
+from cosmosid.helpers.exceptions import NotFoundException
 
 
 class Comparatives(Lister):
     """List of comparatives"""
 
     def take_action(self, parsed_args):
-        data = utils.get_table_from_json(self.app.cosmosid.get_comparatives())
+        comparatives = self.app.cosmosid.get_comparatives()
+        if not comparatives:
+            raise NotFoundException('No comparatives were found')
 
+        data = utils.get_table_from_json(comparatives)
         for name, label in (
             ('uuid', 'ID'),
             ('name', 'Name'),

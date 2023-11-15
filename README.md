@@ -171,7 +171,54 @@ cosmosid files --parent=<folder_id> --order size --up
 ### Retrieve Sample Runs
 
 An each file (sample) stored in CosmosID has one or more Sample Run(s) associated with it.
-To retrieve sample run(s) associated with a file simply run the `cosmosid` command with `runs` subcommand. For example:
+
+Example of output for the --help options for the <runs> command:
+
+```shell
+$ cosmosid runs --help
+
+usage: cosmosid runs [-h] [-f {csv,json,table,value,yaml}] [-c COLUMN] [--quote {all,minimal,none,nonnumeric}] [--noindent] [--max-width <integer>]
+                     [--fit-width] [--print-empty] [--sort-column SORT_COLUMN] [--sort-ascending | --sort-descending] --id ID [--order {id,status,created}] [--up]
+
+Show List Of Runs for a given File.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --id ID, -i ID
+                        ID of the sample
+  --order {id,status,created}, -o {id,status,created}
+                        field for ordering
+  --up                  order direction
+
+output formatters:
+  output formatter options
+
+  -f {csv,json,table,value,yaml}, --format {csv,json,table,value,yaml}
+                        the output format, defaults to table
+  -c COLUMN, --column COLUMN
+                        specify the column(s) to include, can be repeated to show multiple columns
+  --sort-column SORT_COLUMN
+                        specify the column(s) to sort the data (columns specified first have a priority, non-existing columns are ignored), can be repeated
+  --sort-ascending      sort the column(s) in ascending order
+  --sort-descending     sort the column(s) in descending order
+
+CSV Formatter:
+  --quote {all,minimal,none,nonnumeric}
+                        when to include quotes, defaults to nonnumeric
+
+json formatter:
+  --noindent            whether to disable indenting the JSON
+
+table formatter:
+  --max-width <integer>
+                        Maximum display width, <1 to disable. You can also use the CLIFF_MAX_TERM_WIDTH environment variable, but the parameter takes precedence.
+  --fit-width           Fit the table to the display width. Implied if --max-width greater than 0. Set the environment variable CLIFF_FIT_WIDTH=1 to always enable
+  --print-empty         Print empty table if there is no data to show.
+```
+
+
+For example:
+To retrieve sample run(s) associated with a file simply run the `cosmosid` command with `runs` subcommand. 
 
 ```shell
 #to get runs associated with a speciffic file (sample)
@@ -192,6 +239,60 @@ CosmosID supports the following types of analysis:
 > Note: you can get usage help for each command and arguments of CosmosID-HUB CLI by simply runnig `cosmosid --help`
 > or `cosmosid <command> --help`
 
+```shell
+# cosmosid upload --help
+usage: cosmosid upload [-h] [--file FILE] [--parent PARENT] --type {metagenomics,amplicon-16s,amplicon-its}
+                       [-wf WORKFLOW] [--forward-primer FORWARD_PRIMER] [--reverse-primer REVERSE_PRIMER]
+                       [--amplicon-preset {v1_v3,v3_v4,v4}]
+                       [--host-name {human:2.0.0,human:1.0.0,dog:2.0.0,domestic_cat:2.0.0,cow:1.0.0,chicken:2.0.0,mouse:2.0.0,monkey:2.0.0,cattle:2.0.0,pig:2.0.0}]
+                       [--dir DIR]
+
+Upload files to cosmosid.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --file FILE, -f FILE
+                        file(s) for upload. Supported file types: fasta, fna, fasta.gz, fastq, fq, fastq.gz, bam, sra e.g. cosmosid upload
+                        -f /path/file1.fasta -f /path/file2.fn
+  --parent PARENT, -p PARENT
+                        cosmosid parent folder ID for upload
+  --type {metagenomics,amplicon-16s,amplicon-its}, -t {metagenomics,amplicon-16s,amplicon-its}
+                        Type of analysis for a file
+  -wf WORKFLOW, --workflow WORKFLOW
+                        To specify multiple workflows, define them coma separated without any additional symbols.For example: -wf
+                        amr_vir,taxa
+  --forward-primer FORWARD_PRIMER
+                        Only for 'ampliseq' workflow
+  --reverse-primer REVERSE_PRIMER
+                        Only for 'ampliseq' workflow
+  --amplicon-preset {v1_v3,v3_v4,v4}
+                        Only for 'ampliseq' workflowv1_v3:
+                        - forward_primer: AGAGTTTGATCCTGGCTCAG
+                        - reverse_primer: ATTACCGCGGCTGCTGG
+                        v3_v4:
+                        - forward_primer: CCTACGGGRSGCAGCA
+                        - reverse_primer: GACTACHVGGGTATCTAATCC
+                        v4:
+                        - forward_primer: GTGYCAGCMGCCGCGGTAA
+                        - reverse_primer: GGACTACHVGGGTWTCTAAT
+  --host-name {human:2.0.0,human:1.0.0,dog:2.0.0,domestic_cat:2.0.0,cow:1.0.0,chicken:2.0.0,mouse:2.0.0,monkey:2.0.0,cattle:2.0.0,pig:2.0.0}
+                        Name for host removal.
+                        *Available only for type `metagenomics`
+                        human:2.0.0 - Human 2.0.0 (GCF_009914755.1_T2T-CHM13v2.0)
+                        human:1.0.0 - Human 1.0.0 (GRCh38_p6)
+                        dog:2.0.0 - Dog (GCF_014441545.1_ROS_Cfam_1.0)
+                        domestic_cat:2.0.0 - Domestic Cat (GCF_018350175.1_F.catus_Fca126_mat1.0)
+                        cow:1.0.0 - Cow (GCF_002263795l_1_ARS-UCD1_2)
+                        chicken:2.0.0 - Chicken (GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b)
+                        mouse:2.0.0 - Mouse (GCF_000001635.27_GRCm39)
+                        monkey:2.0.0 - Monkey (GCF_003339765.1_Mmul_10)
+                        cattle:2.0.0 - Cattle (GCF002263795.2 - ARS-UCD1.3)
+                        pig:2.0.0 - Pig (GCF_000003025.6_Sscrofa11.1)
+  --dir DIR, -d DIR
+                        directory with files for upload e.g. cosmosid upload -d /path/my_dir
+
+```
+
 To upload sample file to CosmosID run `cosmosid` command with `upload` subcommand. By default samples will be uploaded
 into root folder. To upload sample into specific *existing* folder you must use id of the folder as parameter.
 The CosmosID-HUB CLI supports uploading multiple Single-Read and Paired-End samples. For Paired-End samples, the CLI
@@ -199,7 +300,9 @@ automatically parse and merge samples in pairs if the samples follow the naming 
 xxx_R2.fastq OR xxx_R1_001.fastq and xxx_R2_001.fastq. Note: Paired-End samples require "fastq" format
 
 To upload all samples from folder run `cosmosid upload` command with path to folder specified by --dir/-d parameter
-> Note: This command respects Paired-End samples grouping with the same rules as for regular upload
+> Note: _This command respects Paired-End samples grouping with the same rules as for regular upload_
+
+> Note: _The default workflow is `taxa`_, that is not allowed for amplicon samples, and should be overriden by `--workflow` argument.
 
 Running example:
 
@@ -215,9 +318,18 @@ cosmosid upload --file <path to file-1> --parent <folder id> --type amplicon-16s
 
 #to upload all files from folder
 cosmosid upload -d /home/user/samples/ --type metagenomics
+
+#to upload with host-removal
+cosmosid upload --file <path to file> --type metagenomics --host-name <host name>
+
+#to upload ampliseq-batch
+cosmosid upload --file <path to file> --type amplicon-16s --workflow ampliseq --amplicon-preset <preset>
+cosmosid upload --file <path to file> --type amplicon-16s --workflow ampliseq --forward-primer <forward primer> --reverse-primer <reverse primer>
+
 ```
 
 > Note: uploading of a big file takes time, please be patient
+> Available host names: human:2.0.0, human:1.0.0, dog:2.0.0, domestic_cat:2.0.0, cow:1.0.0, chicken:2.0.0, mouse:2.0.0, monkey:2.0.0, cattle:2.0.0, pig:2.0.0
 
 Once file has been uploaded to CosmosID the analyzing process will automatically begin.
 You can check the status of metagenomics analysis on the page [CosmosID Samples](https://app.cosmosid.com/samples).
@@ -228,7 +340,53 @@ Amplicon analysis results available only from CosmosID-HUB CLI for now.
 Analysis results can be retrieved from CosmosID by useing run id or file id. The latest run analysis results will be
 retrieved when file id used.
 To retrieve analysis results for a specified run in CosmosID simply run `cosmosid` command with `analysis` subcommand.
-File For example:
+
+```shell
+$ cosmosid analysis --help
+usage: cosmosid analysis [-h] [-f {csv,json,table,value,yaml}] [-c COLUMN] [--quote {all,minimal,none,nonnumeric}] [--noindent] [--max-width <integer>]
+                         [--fit-width] [--print-empty] [--sort-column SORT_COLUMN] [--sort-ascending | --sort-descending] [--id ID] [--run_id RUN_ID]
+                         [--order {database,id,strains,strains_filtered,status}] [--up]
+
+Show Analysis for a given file.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --id ID, -i ID
+                        ID of a file
+  --run_id RUN_ID, -r RUN_ID
+                        ID of a sample run
+  --order {database,id,strains,strains_filtered,status}, -o {database,id,strains,strains_filtered,status}
+                        field for ordering
+  --up                  order direction
+
+output formatters:
+  output formatter options
+
+  -f {csv,json,table,value,yaml}, --format {csv,json,table,value,yaml}
+                        the output format, defaults to table
+  -c COLUMN, --column COLUMN
+                        specify the column(s) to include, can be repeated to show multiple columns
+  --sort-column SORT_COLUMN
+                        specify the column(s) to sort the data (columns specified first have a priority, non-existing columns are ignored), can be repeated
+  --sort-ascending      sort the column(s) in ascending order
+  --sort-descending     sort the column(s) in descending order
+
+CSV Formatter:
+  --quote {all,minimal,none,nonnumeric}
+                        when to include quotes, defaults to nonnumeric
+
+json formatter:
+  --noindent            whether to disable indenting the JSON
+
+table formatter:
+  --max-width <integer>
+                        Maximum display width, <1 to disable. You can also use the CLIFF_MAX_TERM_WIDTH environment variable, but the parameter takes precedence.
+  --fit-width           Fit the table to the display width. Implied if --max-width greater than 0. Set the environment variable CLIFF_FIT_WIDTH=1 to always enable
+  --print-empty         Print empty table if there is no data to show.
+```
+
+
+For example:
 
 ```shell
 #to get list of analysis for the latest run of file
@@ -252,6 +410,24 @@ given `Run ID` and saving the archive to a given file.
 To retrieve an analysis report archive with TSV files run the `cosmosid` command with `reports` subcommand.
 
 ```shell
+$ cosmosid reports --help
+usage: cosmosid reports [-h] --id ID [--output OUTPUT | --dir DIR]
+
+Get analysis reports TSV
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --id ID, -i ID
+                        ID of cosmosid sample.
+  --output OUTPUT, -o OUTPUT
+                        output file name. Must have .zip extension. Default: is equivalent to cosmosid file name.
+  --dir DIR, -d DIR
+                        Output directory for a file. Default: is current directory.
+```
+
+For example:
+
+```shell
 # to create analysis report archive for the latest run of sample and save it in
 # a current directory with a name equivalent to file name in CosmosID
 cosmosid reports --id=<file ID>
@@ -273,7 +449,54 @@ cosmosid reports --id=<file ID> --output /tmp/analysis_report.zip
 
 Artifacts results can be retrieved from CosmosID by using run id.
 To retrieve artifacts results for a specified run in CosmosID simply run `cosmosid` command with `artifacts` subcommand.
-File For example:
+```shell
+$ cosmosid artifacts --help
+usage: cosmosid artifacts [-h] [-f {csv,json,table,value,yaml}] [-c COLUMN] [--quote {all,minimal,none,nonnumeric}] [--noindent] [--max-width <integer>]
+                          [--fit-width] [--print-empty] [--sort-column SORT_COLUMN] [--sort-ascending | --sort-descending] --run_id RUN_ID [--type {fastqc-zip}]
+                          [--url] [--output OUTPUT] [--dir DIR]
+
+Show Artifacts for a given file.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --run_id RUN_ID, -r RUN_ID
+                        ID of a sample run
+  --type {fastqc-zip}, -t {fastqc-zip}
+                        Artifact type to download
+  --url                 show download url
+  --output OUTPUT, -o OUTPUT
+                        output file name. Must have .zip extension. Default: is equivalent to cosmosid file name.
+  --dir DIR, -d DIR
+                        Output directory for a file. Default: is current directory.
+
+output formatters:
+  output formatter options
+
+  -f {csv,json,table,value,yaml}, --format {csv,json,table,value,yaml}
+                        the output format, defaults to table
+  -c COLUMN, --column COLUMN
+                        specify the column(s) to include, can be repeated to show multiple columns
+  --sort-column SORT_COLUMN
+                        specify the column(s) to sort the data (columns specified first have a priority, non-existing columns are ignored), can be repeated
+  --sort-ascending      sort the column(s) in ascending order
+  --sort-descending     sort the column(s) in descending order
+
+CSV Formatter:
+  --quote {all,minimal,none,nonnumeric}
+                        when to include quotes, defaults to nonnumeric
+
+json formatter:
+  --noindent            whether to disable indenting the JSON
+
+table formatter:
+  --max-width <integer>
+                        Maximum display width, <1 to disable. You can also use the CLIFF_MAX_TERM_WIDTH environment variable, but the parameter takes precedence.
+  --fit-width           Fit the table to the display width. Implied if --max-width greater than 0. Set the environment variable CLIFF_FIT_WIDTH=1 to always enable
+  --print-empty         Print empty table if there is no data to show.
+```
+
+
+For example:
 
 ```shell
 
@@ -302,6 +525,53 @@ To download samples for a specified samples_id in CosmosID simply run `cosmosids
 > Note: We recommend installing pycurl for the best experience with a sample download,
 > see: http://pycurl.io/docs/latest/index.html#installation
 
+```shell
+$ cosmosid download --help
+usage: cosmosid download [-h] [-f {csv,json,table,value,yaml}] [-c COLUMN] [--quote {all,minimal,none,nonnumeric}] [--noindent] [--max-width <integer>]
+                         [--fit-width] [--print-empty] [--sort-column SORT_COLUMN] [--sort-ascending | --sort-descending] [--samples_ids SAMPLES_IDS]
+                         [--input-file INPUT_FILE] [--dir DIR] [--no-display] [--concurrent-downloads CONCURRENT_DOWNLOADS]
+
+Download Samples for a given samples ids.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --samples_ids SAMPLES_IDS, -s SAMPLES_IDS
+                        Comma separated list of samples uuids
+  --input-file INPUT_FILE
+                        Path to file with samples' ids
+  --dir DIR, -d DIR
+                        Output directory for a file. Default: is current directory.
+  --no-display          Disable displaying loading process
+  --concurrent-downloads CONCURRENT_DOWNLOADS
+                        Limit concurrent files downloads
+
+output formatters:
+  output formatter options
+
+  -f {csv,json,table,value,yaml}, --format {csv,json,table,value,yaml}
+                        the output format, defaults to table
+  -c COLUMN, --column COLUMN
+                        specify the column(s) to include, can be repeated to show multiple columns
+  --sort-column SORT_COLUMN
+                        specify the column(s) to sort the data (columns specified first have a priority, non-existing columns are ignored), can be repeated
+  --sort-ascending      sort the column(s) in ascending order
+  --sort-descending     sort the column(s) in descending order
+
+CSV Formatter:
+  --quote {all,minimal,none,nonnumeric}
+                        when to include quotes, defaults to nonnumeric
+
+json formatter:
+  --noindent            whether to disable indenting the JSON
+
+table formatter:
+  --max-width <integer>
+                        Maximum display width, <1 to disable. You can also use the CLIFF_MAX_TERM_WIDTH environment variable, but the parameter takes precedence.
+  --fit-width           Fit the table to the display width. Implied if --max-width greater than 0. Set the environment variable CLIFF_FIT_WIDTH=1 to always enable
+  --print-empty         Print empty table if there is no data to show.
+```
+
+
 For example:
 
 ```shell
@@ -321,6 +591,9 @@ cosmosid download --samples_ids=<samples_id>,<sample_id> --no-display
 #to download the original samples with specified quantity of concurrent files downloads
 cosmosid download --samples_ids=<sample_id>,<sample_id> --concurrent-downloads=<quantity>
 
+#to download the original samples using file with their ids
+cosmosid download --input-file=<path-to-file>
+
 ```
 
 > Note: You can specify chunk size by CHUNK_SIZE environment variable
@@ -332,25 +605,115 @@ It's possible to view list of comparative analyses and download them.
 #### List commands
 
 ```shell
-#to get list of comparatives
-cosmosid comparatives 
+#print list of comparatives generated using metadata & cohorts menu
+cosmosid comparatives --help
+cosmosid comparatives --help
+usage: cosmosid comparatives [-h] [-f {csv,json,table,value,yaml}] [-c COLUMN] [--quote {all,minimal,none,nonnumeric}] [--noindent] [--max-width <integer>]
+                             [--fit-width] [--print-empty] [--sort-column SORT_COLUMN] [--sort-ascending | --sort-descending]
 
-#to get list of analyses that are not united to comparative
-cosmosid comparative analyses
+List of comparatives
 
-#to get list of comparatives that are united to comparative
-cosmosid comparative analyses --comparative-id=<comparative_id>
+optional arguments:
+  -h, --help            show this help message and exit
+
+output formatters:
+  output formatter options
+
+  -f {csv,json,table,value,yaml}, --format {csv,json,table,value,yaml}
+                        the output format, defaults to table
+  -c COLUMN, --column COLUMN
+                        specify the column(s) to include, can be repeated to show multiple columns
+  --sort-column SORT_COLUMN
+                        specify the column(s) to sort the data (columns specified first have a priority, non-existing columns are ignored), can be repeated
+  --sort-ascending      sort the column(s) in ascending order
+  --sort-descending     sort the column(s) in descending order
+
+CSV Formatter:
+  --quote {all,minimal,none,nonnumeric}
+                        when to include quotes, defaults to nonnumeric
+
+json formatter:
+  --noindent            whether to disable indenting the JSON
+
+table formatter:
+  --max-width <integer>
+                        Maximum display width, <1 to disable. You can also use the CLIFF_MAX_TERM_WIDTH environment variable, but the parameter takes precedence.
+  --fit-width           Fit the table to the display width. Implied if --max-width greater than 0. Set the environment variable CLIFF_FIT_WIDTH=1 to always enable
+  --print-empty         Print empty table if there is no data to show.
+```
+
+Print list of comparatives generated using the comparative analysis menu:
+
+```shell
+$ cosmosid comparative analyses --help
+usage: cosmosid comparative analyses [-h] [-f {csv,json,table,value,yaml}] [-c COLUMN] [--quote {all,minimal,none,nonnumeric}] [--noindent]
+                                     [--max-width <integer>] [--fit-width] [--print-empty] [--sort-column SORT_COLUMN] [--sort-ascending | --sort-descending]
+                                     [--comparative-id COMPARATIVE_ID]
+
+List of all comparative analyses outside comparatives (if there are no any comparative ids)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --comparative-id COMPARATIVE_ID
+                        Comparatives' ids
+
+output formatters:
+  output formatter options
+
+  -f {csv,json,table,value,yaml}, --format {csv,json,table,value,yaml}
+                        the output format, defaults to table
+  -c COLUMN, --column COLUMN
+                        specify the column(s) to include, can be repeated to show multiple columns
+  --sort-column SORT_COLUMN
+                        specify the column(s) to sort the data (columns specified first have a priority, non-existing columns are ignored), can be repeated
+  --sort-ascending      sort the column(s) in ascending order
+  --sort-descending     sort the column(s) in descending order
+
+CSV Formatter:
+  --quote {all,minimal,none,nonnumeric}
+                        when to include quotes, defaults to nonnumeric
+
+json formatter:
+  --noindent            whether to disable indenting the JSON
+
+table formatter:
+  --max-width <integer>
+                        Maximum display width, <1 to disable. You can also use the CLIFF_MAX_TERM_WIDTH environment variable, but the parameter takes precedence.
+  --fit-width           Fit the table to the display width. Implied if --max-width greater than 0. Set the environment variable CLIFF_FIT_WIDTH=1 to always enable
+  --print-empty         Print empty table if there is no data to show.
+```
+
+Example: print list of child comparatives generated under a parent comparative using metadata & cohorts menu
+
+```shell
+$ cosmosid comparative analyses --comparative-id=<comparative_id>
 ```
 
 #### Export commands
 
+Export comparative analyses without log scale
+
 ```shell
-#to export comparative analyses without log scale
-cosmosid comparative analyses export --id=<analysis_id> 
+$ cosmosid comparative analyses export --help
+usage: cosmosid comparative analyses export [-h] --id ID [--tax-level {kingdom,order,phylum,class,family,genus,species,strain}] [--log-scale]
+                                            [--concurrent-downloads CONCURRENT_DOWNLOADS] [--dir DIR]
 
-#to export comparative analyses
-cosmosid comparative analyses export --id=<analysis_id> --log-scale
+Download results of comparative analyses
 
-#to export comparative analyses with specified taxonomy level ('species' by default)
-cosmosid comparative analyses export --id=<analysis_id> --tax-level=class --tax-level=genus
+optional arguments:
+  -h, --help            show this help message and exit
+  --id ID       IDs of comparative analyses
+  --tax-level {kingdom,order,phylum,class,family,genus,species,strain}
+                        Taxonomy
+  --log-scale           Includes results with logscale
+  --concurrent-downloads CONCURRENT_DOWNLOADS
+                        Limit concurrent files downloads
+  --dir DIR, -d DIR
+                        Output directory for a file. Default: is current directory.
+```
+
+Example export comparative analyses with specified taxonomy level ('species' by default):
+
+```shell
+$ cosmosid comparative analyses export --id=<analysis_id> --tax-level=class --tax-level=genus
 ```

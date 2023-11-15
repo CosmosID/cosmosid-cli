@@ -28,15 +28,19 @@ class ComparativeAnalyses:
             'multiqc-zip-info': f'{api_url}/{{analysis_id}}',
             'multiqc-zip-run-id': f'{api_url}/{{analysis_id}}/results/multiqc',
             ComparativeExportType.matrix.value: f'{export_by_analysis_id_api_url}/matrix?tax_level={{tax_level}}&log_scale={{log_scale}}',
-            ComparativeExportType.alpha_diversity.value: f'{export_by_analysis_id_api_url}/alphazip?method=chao1',
-            ComparativeExportType.beta_diversity.value: f'{export_by_analysis_id_api_url}/betazip?method=abund_jaccard',
+            ComparativeExportType.alpha_diversity.value: f'{export_by_analysis_id_api_url}/alphazip',
+            ComparativeExportType.beta_diversity.value: f'{export_by_analysis_id_api_url}/betazip',
             ComparativeExportType.read_statistics.value: f'{export_by_analysis_id_api_url}/read-statistics',
-            ComparativeExportType.multiqc.value: f'{base_url}/api/metagenid/v1/runs/{{run_id}}/artifacts/multiqc-zip?filter=total',
-
+            ComparativeExportType.multiqc.value: f'{base_url}/api/metagenid/v1/runs/{{run_id}}/artifacts/multiqc-zip',
+            ComparativeExportType.ampliseq_summary.value: f'{export_by_analysis_id_api_url}/ampliseq-summary',
+            ComparativeExportType.lefse.value: f'{export_by_analysis_id_api_url}/lefse',
         }
+
         self._default__available_types = (
             ComparativeExportType.matrix.value, ComparativeExportType.alpha_diversity.value,
-            ComparativeExportType.beta_diversity.value, ComparativeExportType.read_statistics.value)
+            ComparativeExportType.beta_diversity.value, ComparativeExportType.read_statistics.value,
+            ComparativeExportType.ampliseq_summary.value, ComparativeExportType.lefse.value
+        )
         self._available_types = {
             'multiqc': (ComparativeExportType.multiqc.value,)
         }
@@ -199,7 +203,6 @@ class ComparativeAnalyses:
                     'analysis-info', analysis_id=analysis_id)
             except requests.HTTPError:
                 analyses_ids.remove(analysis_id)
-
         directories = {
             analysis_id: os.path.join(
                 output_dir, get_valid_name(analyses[analysis_id]['name']))

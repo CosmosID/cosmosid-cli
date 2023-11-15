@@ -206,7 +206,7 @@ def upload_file(**kwargs):
         fl_obj = Files(base_url=base_url, api_key=api_key)
         res = fl_obj.get_list(parent_id=parent_id, limit=1)
         if not res["status"]:
-            raise NotFoundException("Parent folder for upload does " "not exists.")
+            raise NotFoundException("Parent folder for upload doesn't exist.")
 
     transfer_manager = TransferManager(client, config=config, osutil=osutil)
 

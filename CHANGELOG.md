@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.9]
+
+### Changed
+
+* Add the ability to download 16s (ampliseq) summary comparative results.
+* Added support for running Ampliseq 16s batch workflow. The command [Upload](README.md#upload-files) got mandatory Ampliseq Batch parameters: `--amplicon-preset` or `--forward-primer` with `--reverse-primer.`
+* Added support for the Host Removal step for WGS samples on file upload. The command [Upload](README.md#upload-files) has the optional parameter `--host-name.`
+* The command [Upload](README.md#upload-files) uses Batch Import Workflow.
+* Added the possibility to download original files by file with the list of samples' IDs in command. The command [Download](README.md#download-original-samples) has parameter `--input-file`.
+
+### Fixed
+
+* Non-zero exit code on failures
+
 ## [2.1.8]
 
 ### Fixed

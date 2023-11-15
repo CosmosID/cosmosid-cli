@@ -57,8 +57,7 @@ class CosmosidApi(object):
             if api_key is None:
                 raise ValidationError("Api Key is empty")
         except (KeyError, ValueError) as err:
-            self.logger.info("Can't get Cosmosid Api Key")
-            utils.log_traceback(err)
+            raise Exception("Can't get Cosmosid Api Key") from err
         return api_key
 
     def dashboard(self, parent):
@@ -92,32 +91,40 @@ class CosmosidApi(object):
             self.logger.error("Client exception occurred")
             utils.log_traceback(err)
 
-    def import_workflow(self, workflow_ids, files, file_type, parent_id=None):
-        import_wf = ImportWorkflow(
-            base_url=self.base_url, api_key=self.api_key)
-        files_s3 = []
+    def import_workflow(self, workflow_ids, pairs, file_type, parent_id=None, host_name=None, forward_primer=None, reverse_primer=None):
+        import_wf = ImportWorkflow(base_url=self.base_url, api_key=self.api_key)
         try:
-            for file in files["files"]:
-                files_s3.append(
-                    upload.upload_file(
-                        file=file,
-                        file_type=file_type,
-                        parent_id=parent_id,
-                        api_key=self.api_key,
-                        base_url=self.base_url,
+            for pair in pairs:
+                for file in pair['files']:
+                    pair.setdefault('files_s3', []).append(
+                        upload.upload_file(
+                            file=file,
+                            file_type=file_type,
+                            parent_id=parent_id,
+                            api_key=self.api_key,
+                            base_url=self.base_url,
+                        )
                     )
-                )
-                self.logger.info(f'\r{file} was uploaded.' + ' ' * 30)
+                    self.logger.info(f'\r{file} was uploaded.' + ' ' * 30)
 
             import_wf.import_workflow(
                 workflow_ids,
-                {"files": files_s3, "file_name": files["sample_name"]},
+                [{
+                    "files": pair['files_s3'],
+                    "file_name": pair["sample_name"]
+                } for pair in pairs],
                 file_type,
                 parent_id,
+                host_name,
+                forward_primer, 
+                reverse_primer,
             )
+        except NotFoundException as err:
+            self.logger.error("Parent folder for upload doesn't exist.")
+            raise err
         except UploadException as err:
             self.logger.error(
-                "\nError occurred on File import: {}".format(files))
+                "\nError occurred on File import: {}".format(pairs))
             utils.log_traceback(err)
 
     def upload_files(self, files, file_type, parent_id=None):

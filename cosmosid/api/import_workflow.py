@@ -2,9 +2,9 @@
 import json
 import logging
 
-from cosmosid.helpers.exceptions import UploadException
 from requests import post
 from requests.exceptions import JSONDecodeError, RequestException, HTTPError
+from cosmosid.enums import Workflows
 
 LOGGER = logging.getLogger(__name__)
 
@@ -15,40 +15,49 @@ class ImportWorkflow(object):
         self.logger = LOGGER
         self.header = {"X-Api-Key": api_key, "Content-Type": "application/json"}
 
-    def import_workflow(self, workflow_ids, files, file_type, folder_id=None):
-        upload_url = self.base_url + "/api/metagenid/v3/import"
+    def import_workflow(self, workflow_ids, pairs, file_type, folder_id=None, host_name=None, forward_primer=None, reverse_primer=None):
+        upload_url = f'{self.base_url}/api/workflow/v1/workflows/{Workflows.BatchImport}/start'
+        
+        workflows = workflow_ids.copy()
+        workflows_with_parameters = {}
+        if Workflows.AmpliseqBatchGroup in workflows:
+            workflows.remove(Workflows.AmpliseqBatchGroup)
+            workflows_with_parameters[Workflows.AmpliseqBatchGroup] = {
+                "forward_primer": forward_primer,
+                "reverse_primer": reverse_primer,
+            }
+            
+        parameters = {
+            "workflows": {},
+        }
+        if host_name:
+            parameters["host_name"] = host_name
+        
         payload = {
-            'files': [
-                {
-                    "metadata": {},
-                    "parameters": {},
-                    "source": "upload",
-                    "folder_id": folder_id,
-                    "workflow": workflow_ids,
-                    "files": files["files"],
-                    "sample_name": files["file_name"],
-                    "sample_type": file_type,
-                }
-            ]
+            "import_params_list": [{
+                "sample_name": pair["file_name"],
+                "parent_folder": folder_id,
+                "sample_type": file_type,
+                "source": "upload",
+                "files": pair["files"],
+                "metadata": {},
+                "parameters": parameters,
+                "workflows": workflows,
+                "sample_tags": [],
+                "sample_custom_metadata": [],
+                "sample_system_metadata": []
+            } for pair in pairs],
+            "workflows": workflows_with_parameters
         }
         try:
             response = post(
                 upload_url,
                 data=json.dumps(payload),
                 headers=self.header,
-
             )
-            errors = response.json().get('errors')
-            if errors:
-                raise UploadException(
-                    '\n'.join([
-                        f"Error with {error.get('sample', {}).get('sample_name')}: {error.get('description')}"
-                        for error in errors
-                    ])
-                )
             response.raise_for_status()
         except HTTPError as err:
-            self.logger.error(f"{files} files can't be uploaded. Aborting.")
+            self.logger.error(f"{pairs} files can't be uploaded. Aborting.")
             raise RuntimeError(err)
         except RequestException as err:
             self.logger.error("Upload request can't be send", err)

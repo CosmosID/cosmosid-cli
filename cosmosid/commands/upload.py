@@ -1,9 +1,15 @@
 import os
 import re
 from pathlib import Path
+from argparse import ArgumentTypeError
 
 from cliff.command import Command
-from cosmosid.helpers import parser_builders, argument_actions
+from cosmosid.helpers import parser_builders, argument_actions, argument_validators
+from cosmosid.enums import AMPLICON_PRESETS, HOST_REMOVAL_OPTIONS, FILE_TYPES, Workflows
+
+wf_mapping = {
+    'ampliseq': 'ampliseq_batch_group'
+}
 
 
 class Upload(Command):
@@ -59,14 +65,12 @@ class Upload(Command):
             type=str,
             help="cosmosid parent folder ID for upload",
         )
-        file_type_choice = {"metagenomics": 2,
-                            "amplicon-16s": 5, "amplicon-its": 6}
         parser.add_argument(
             "--type",
             "-t",
             action=argument_actions.ChoicesAction,
             required=True,
-            choices=file_type_choice,
+            choices=FILE_TYPES,
             type=str,
             default=None,
             help="Type of analysis for a file",
@@ -75,12 +79,47 @@ class Upload(Command):
         parser.add_argument(
             "-wf",
             "--workflow",
-            help="Workflow: taxa, amr_vir, functional, amplicon_16s, amplicon_its."
-                 "To specify multiple workflows, define them coma separated without any additional symbols."
+            help="To specify multiple workflows, define them coma separated without any additional symbols."
                  "For example: -wf amr_vir,taxa",
             type=str,
             default="taxa",
         )
+
+        parser.add_argument(
+            "--forward-primer",
+            help="Only for 'ampliseq' workflow",
+            type=argument_validators.is_primer,
+            default=None,
+        )
+        parser.add_argument(
+            "--reverse-primer",
+            help="Only for 'ampliseq' workflow",
+            type=argument_validators.is_primer,
+            default=None,
+        )
+        parser.add_argument(
+            "--amplicon-preset",
+            choices=AMPLICON_PRESETS.keys(),
+            help="Only for 'ampliseq' workflow"+'\n'.join([
+                f'''{preset_name}:
+                    - forward_primer: {preset_value['forward_primer']}
+                    - reverse_primer: {preset_value['reverse_primer']}
+                '''
+                for preset_name, preset_value in AMPLICON_PRESETS.items()
+            ]),
+            type=str,
+            default=None,
+        )
+
+        host_removal_options_text = '\n'.join([f'{key:<30}- {label}' for key, label in HOST_REMOVAL_OPTIONS.items()])
+        parser.add_argument(
+            "--host-name",
+            help="Name for host removal.\n*Available only for type `metagenomics`\n" + host_removal_options_text,
+            type=str,
+            choices=HOST_REMOVAL_OPTIONS.keys(),
+            default=None,
+        )
+        
         parser_builders.directory(
             parser,
             help="directory with files for upload e.g. cosmosid upload -d /path/my_dir"
@@ -94,28 +133,25 @@ class Upload(Command):
         parent_id = parsed_args.parent if parsed_args.parent else None
         directory = parsed_args.dir if parsed_args.dir else None
         files = parsed_args.file if parsed_args.file else None
-        input_workflow = parsed_args.workflow
         enabled_workflows = self.app.cosmosid.get_enabled_workflows()
+        
+        if parsed_args.host_name and parsed_args.type!=FILE_TYPES['metagenomics']:
+            raise Exception('Argument `--host-name` is available only for `metagenomics` type')
 
         profile = self.app.cosmosid.profile()
         balance = profile.get("credits", 0) + profile.get("bonuses", 0)
 
         if balance <= 0:
-            self.app.logger.info(
-                "\nYou don't have enough credits and bonuses to run analysis")
-            return
+            raise Exception("\nYou don't have enough credits and bonuses to run analysis")
 
         if (files and directory) or (not files and not directory):
-            self.app.logger.info(
+            raise Exception(
                 "\nInvalid input parameters. Files or directory must be specified."
                 " It is not permitted to specify both file and directory in one command."
             )
-            return
         elif files:
             if not all([os.path.exists(f) for f in files]):
-                self.app.logger.error(
-                    "Not all specified files exist: %s", files)
-                return
+                raise Exception("Not all specified files exist: %s", files)
         else:
             if os.path.isdir(directory):
                 files = [
@@ -129,42 +165,69 @@ class Upload(Command):
                     )
                 )
             else:
-                self.app.logger.info(
+                raise Exception(
                     "\nSpecified path {directory} is not a directory.".format(
                         directory=directory
                     )
                 )
-                return
 
         workflow_ids = []
-        for wf in input_workflow.split(","):
+        for wf in parsed_args.workflow.split(","):
             try:
                 workflow_ids.append(
-                    list(filter(lambda x: x["name"] == wf, enabled_workflows))[0]["id"]
+                    list(filter(lambda x: x["name"] == wf_mapping.get(wf, wf), enabled_workflows))[0]["id"]
                 )
-            except IndexError:
-                self.app.logger.error(f"'{wf}' workflow is not enabled")
+            except IndexError as e:
+                raise Exception(f"'{wf}' workflow is not enabled") from e
 
         if not workflow_ids:
             raise RuntimeError(
-                f"All workflows from the given list '{input_workflow}' are not enabled, file(s) cannot be uploaded. Aborting."
+                f"All workflows from the given list '{parsed_args.workflow}' are not enabled, file(s) cannot be uploaded. Aborting."
             )
+
+        forward_primer = None
+        reverse_primer = None
+
+        if Workflows.AmpliseqBatchGroup in workflow_ids and not (
+            parsed_args.amplicon_preset or (parsed_args.forward_primer and parsed_args.reverse_primer)
+        ):
+            raise Exception(
+                'Next arguments are required for Amplicon 16S Batch: '
+                '`--amplicon-preset` or  `--forward-primer` with `--reverse-primer`'
+            )
+        
+        if parsed_args.amplicon_preset or parsed_args.forward_primer or parsed_args.reverse_primer:
+            if Workflows.AmpliseqBatchGroup not in workflow_ids:
+                raise Exception (
+                    'Next arguments are available only for Amplicon 16S Batch: '
+                    '`--amplicon-preset`, `--forward-primer`, `--reverse-primer`'
+                )
+            
+            if parsed_args.amplicon_preset and (parsed_args.forward_primer or parsed_args.reverse_primer):
+                raise Exception('--amplicon-preset cannot be used with forward or reverse primers')
+            
+            if parsed_args.amplicon_preset:
+                forward_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]['forward_primer']
+                reverse_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]['reverse_primer']
+            if parsed_args.forward_primer:
+                forward_primer = parsed_args.forward_primer
+            if parsed_args.reverse_primer:
+                reverse_primer = parsed_args.reverse_primer
 
         pairs = []
         files = sorted(files)
         prev_fname, prev_ext = self.get_base_file_name_and_extension(files[0])
 
         if prev_ext not in self.allowed_extensions:
-            self.app.logger.info(
-                "not supported file extension for file {}".format(files[0]))
-            return
+            raise Exception("not supported file extension for file {}".format(files[0]))
+
         paired_ended = {"files": [files[0]],
                         "sample_name": prev_fname, "ext": prev_ext}
         for fname in files[1:]:
             cur_fname, cur_ext = self.get_base_file_name_and_extension(fname)
 
             if cur_ext not in self.allowed_extensions:
-                self.app.logger.info(
+                raise Exception(
                     "not supported file extension for file {}".format(fname))
                 return
             if cur_fname == prev_fname and prev_ext == cur_ext:
@@ -202,17 +265,15 @@ class Upload(Command):
         for price in self.app.cosmosid.pricing(data=pricing_req):
             cost += price["pricing"][str(parsed_args.type)]
         if cost > balance:
-            self.app.logger.info(
-                "\nYou don't have enough credits and bonuses to run analysis")
-            return
+            raise Exception("\nYou don't have enough credits and bonuses to run analysis")
 
         self.app.logger.info("\nFiles uploading is started")
         for pair in pairs:
             # In case some file don't have pair, we get this file and upload it as single sample
             if len(pair.get("files")) == 1:
                 pair.update(sample_name=os.path.basename(pair.get("files")[0]))
-            self.app.cosmosid.import_workflow(
-                workflow_ids, pair, parsed_args.type, parent_id
-            )
+        self.app.cosmosid.import_workflow(
+            workflow_ids, pairs, parsed_args.type, parent_id, parsed_args.host_name, forward_primer, reverse_primer
+        )
         self.app.logger.info("\nFiles have been sent to analysis.")
         self.app.logger.info("Task Done")
