@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from requests.exceptions import ConnectionError
 
 import cosmosid.api.upload as upload
 import cosmosid.utils as utils
@@ -24,7 +25,7 @@ from cosmosid.helpers.exceptions import (
 )
 
 
-class CosmosidApi(object):
+class CosmosidApi:
     """
     Client is a python client on top of the CosmosID interface.
     """
@@ -82,14 +83,10 @@ class CosmosidApi(object):
         except Exception as err:
             self.logger.error("Failed to get listing of directory %s", parent)
             utils.log_traceback(err)
-
+    
     def get_enabled_workflows(self):
-        workflow = Workflow(base_url=self.base_url, api_key=self.api_key)
-        try:
-            return workflow.get_workflows()
-        except Exception as err:
-            self.logger.error("Client exception occurred")
-            utils.log_traceback(err)
+        workflow_api = Workflow(base_url=self.base_url, api_key=self.api_key)
+        return workflow_api.get_workflows()            
 
     def import_workflow(self, workflow_ids, pairs, file_type, parent_id=None, host_name=None, forward_primer=None, reverse_primer=None):
         import_wf = ImportWorkflow(base_url=self.base_url, api_key=self.api_key)

@@ -259,8 +259,11 @@ optional arguments:
   --type {metagenomics,amplicon-16s,amplicon-its}, -t {metagenomics,amplicon-16s,amplicon-its}
                         Type of analysis for a file
   -wf WORKFLOW, --workflow WORKFLOW
-                        To specify multiple workflows, define them coma separated without any additional symbols.For example: -wf
-                        amr_vir,taxa
+                        To specify multiple workflows, define them coma separated without any additional symbols.For example: 
+                        -wf amr_vir,taxa
+                        To specify workflow verions, define it by ':'. For example:
+                        -wf taxa:1.1.0,amr_vir
+
   --forward-primer FORWARD_PRIMER
                         Only for 'ampliseq' workflow
   --reverse-primer REVERSE_PRIMER
@@ -304,6 +307,8 @@ To upload all samples from folder run `cosmosid upload` command with path to fol
 
 > Note: _The default workflow is `taxa`_, that is not allowed for amplicon samples, and should be overriden by `--workflow` argument.
 
+> Note: _You can view all possible workflows by `workflow` command
+
 Running example:
 
 `cosmosid upload --type metagenomics -f /pathtofile/test1_R1.fastq` -f /pathtofile/test1_R2.fastq -f
@@ -334,6 +339,57 @@ cosmosid upload --file <path to file> --type amplicon-16s --workflow ampliseq --
 Once file has been uploaded to CosmosID the analyzing process will automatically begin.
 You can check the status of metagenomics analysis on the page [CosmosID Samples](https://app.cosmosid.com/samples).
 Amplicon analysis results available only from CosmosID-HUB CLI for now.
+
+### Get enabled workflows
+
+To view workflows, that can be used for `upload` command, you can use `workflows` command:
+
+```shell
+cosmosid workflows
+```
+
+Result:
+```
+Using base URL: https://app.cosmosid.com
++---------------+---------+----------------------------+---------------------------------------------------------------------------------------------------------------+
+| Name          | Version | Sample Type                | Description                                                                                                   |
++---------------+---------+----------------------------+---------------------------------------------------------------------------------------------------------------+
+| amplicon_its  | 1.0.0   | Amplicon ITS               | Amplicon ITS workflow allows you to characterize the fungi in a microbial community based on ITS              |
+|               |         |                            | (internal transcribed spacer) region with a genus to species taxonomic resolution of fungi.                   |
+| ampliseq      | 1.0.0   | Amplicon 16S               | Amplicon 16S workflow allows you to characterize the bacteria in a microbial community based on 16S           |
+|               |         |                            | rRNA marker gene with a genus to species taxonomic resolution of bacteria.                                    |
+|               |         |                            |                                                                                                               |
+|               |         |                            | Please be advised, we recommend running Amplicon 16S workflow with a batch of sequencing data that has        |
+|               |         |                            | been generated from the same sequencing run. Running the Amplicon 16S workflow in a group of samples          |
+|               |         |                            | from the same sequencing run allows for more accurate error correction and denoising because it takes         |
+|               |         |                            | advantage of the technical variability present within the sequencing run. This variability can be used        |
+|               |         |                            | to identify and correct errors that are specific to the sequencing run, rather than errors that are           |
+|               |         |                            | specific to individual samples. That&#39;s why running Amplicon 16S with only 1 sample may not yield          |
+|               |         |                            | successful results.                                                                                           |
+| amr_vir       | 1.0.0   | Shotgun metagenomics (WGS) | The AMR and Virulence Marker workflow allows you to characterize the antimicrobial and virulence genes        |
+|               |         |                            | in the microbiome community.                                                                                  |
+| amr_vir       | 1.1.0   | Shotgun metagenomics (WGS) | None                                                                                                          |
+| bacteria_beta | 1.0.0   | Shotgun metagenomics (WGS) | The Bacteria Beta 2.1.0 workflow allows you to characterize the composition of the bacterial community        |
+|               |         |                            | in your sample with our new Bacterial Beta Database 2.1.0.                                                    |
+| functional    | 1.0.0   | Shotgun metagenomics (WGS) | The Functional workflow allows you to leverage the power of the MetaCyc Pathway and Gene Ontology             |
+|               |         |                            | databases to characterize and predict the functional potential of the underlying microbiome community.        |
+|               |         |                            |                                                                                                               |
+|               |         |                            | If you are planning to run Functional 1.0 workflow for your data, please consider running Functional          |
+|               |         |                            | 2.0 since Functional 1.0 will be phased out and will be unavailable on the HUB in 6 months time.              |
+| kepler        | 1.0.0   | Shotgun metagenomics (WGS) | We are delighted to present the newest edition of our Taxa Workflow, "Taxa-Kepler". The taxa                  |
+|               |         |                            |       workflow has been upgraded to effectively merge the sensitivity and precision of our k-mer methodology  |
+|               |         |                            |       with our novel Probabilistic Smith-Waterman read-alignment approach. The resulting integration not only |
+|               |         |                            |       augments the ability to estimate taxa abundance but also enhances the classification accuracy and       |
+|               |         |                            |       precision. Experience accurate microbiome community characterization with "Taxa-Kepler"                 |
+| kepler        | 1.1.0   | Shotgun metagenomics (WGS) | None                                                                                                          |
+| kepler_domain | 1.1.0   | Shotgun metagenomics (WGS) | None                                                                                                          |
+| taxa          | 1.1.0   | Shotgun metagenomics (WGS) | The Taxa workflow allows you to leverage the power of the CosmosID taxonomic databases to characterize        |
+|               |         |                            | the microbiome community with strain level resolution across multiple kingdoms.                               |
+| taxa          | 1.2.0   | Shotgun metagenomics (WGS) | The Taxa workflow allows you to leverage the power of the CosmosID taxonomic databases to characterize        |
+|               |         |                            | the microbiome community with strain level resolution across multiple kingdoms.                               |
++---------------+---------+----------------------------+---------------------------------------------------------------------------------------------------------------+
+
+```
 
 ### Retrieving Analysis Results
 
@@ -607,7 +663,7 @@ It's possible to view list of comparative analyses and download them.
 ```shell
 #print list of comparatives generated using metadata & cohorts menu
 cosmosid comparatives --help
-cosmosid comparatives --help
+
 usage: cosmosid comparatives [-h] [-f {csv,json,table,value,yaml}] [-c COLUMN] [--quote {all,minimal,none,nonnumeric}] [--noindent] [--max-width <integer>]
                              [--fit-width] [--print-empty] [--sort-column SORT_COLUMN] [--sort-ascending | --sort-descending]
 

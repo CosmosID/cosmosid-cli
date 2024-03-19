@@ -1,7 +1,9 @@
 """Representation of Workflow."""
 import logging
-
 import requests
+from requests.exceptions import RequestException
+
+from cosmosid.helpers.exceptions import CosmosidConnectionError, CosmosidServerError, AuthenticationFailed
 
 LOGGER = logging.getLogger(__name__)
 
@@ -13,11 +15,22 @@ class Workflow(object):
         self.header = {"X-Api-Key": api_key, "Content-Type": "application/json"}
 
     def get_workflows(self):
-        res = requests.get(
-            f"{self.base_url}/api/workflow/v1/workflows",
-            params={"enabled": "true"},
-            headers=self.header,
-        )
+        
+        try:
+            res = requests.get(
+                f"{self.base_url}/api/workflow/v1/workflows",
+                params={"enabled": "true"},
+                headers=self.header,
+            )
+        except RequestException:
+            raise CosmosidConnectionError()
+            
+        if not res.ok:
+            if res.status_code in (401, 403):
+                raise AuthenticationFailed()
+            elif 500<=res.status_code<600:
+                raise CosmosidServerError()
+            else:
+                raise CosmosidConnectionError()
 
-        res.raise_for_status()
         return res.json()

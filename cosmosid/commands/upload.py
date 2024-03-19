@@ -1,15 +1,12 @@
 import os
 import re
 from pathlib import Path
-from argparse import ArgumentTypeError
+from distutils.version import StrictVersion
 
 from cliff.command import Command
 from cosmosid.helpers import parser_builders, argument_actions, argument_validators
-from cosmosid.enums import AMPLICON_PRESETS, HOST_REMOVAL_OPTIONS, FILE_TYPES, Workflows
-
-wf_mapping = {
-    'ampliseq': 'ampliseq_batch_group'
-}
+from cosmosid.enums import AMPLICON_PRESETS, HOST_REMOVAL_OPTIONS, FILE_TYPES, Workflows, CLI_NAME_TO_WF_NAME
+from cosmosid.helpers.exceptions import CosmosidConnectionError, CosmosidServerError, AuthenticationFailed
 
 
 class Upload(Command):
@@ -79,8 +76,11 @@ class Upload(Command):
         parser.add_argument(
             "-wf",
             "--workflow",
-            help="To specify multiple workflows, define them coma separated without any additional symbols."
-                 "For example: -wf amr_vir,taxa",
+            help="To specify multiple workflows, define them coma separated without any additional symbols.\n"
+                 "Add :<version> if you need to specify version\n"
+                 "For example: -wf taxa:1.1.0,amr_vir\n"
+                 "(Latest workflow version will be used if it wasn't specified)"
+                 " Use 'workflows' command to view possible workflows",
             type=str,
             default="taxa",
         )
@@ -133,10 +133,15 @@ class Upload(Command):
         parent_id = parsed_args.parent if parsed_args.parent else None
         directory = parsed_args.dir if parsed_args.dir else None
         files = parsed_args.file if parsed_args.file else None
-        enabled_workflows = self.app.cosmosid.get_enabled_workflows()
         
-        if parsed_args.host_name and parsed_args.type!=FILE_TYPES['metagenomics']:
-            raise Exception('Argument `--host-name` is available only for `metagenomics` type')
+        try:
+            enabled_workflows = self.app.cosmosid.get_enabled_workflows()
+        except CosmosidServerError:
+            self.app.logger.error("Server error occurred while getting workflows")
+        except AuthenticationFailed:
+            self.app.logger.error("Cannot get workflows. Ensure you use valid api-key")
+        except CosmosidConnectionError:
+            self.app.logger.error("Connection error occurred while getting workflows")
 
         profile = self.app.cosmosid.profile()
         balance = profile.get("credits", 0) + profile.get("bonuses", 0)
@@ -174,9 +179,19 @@ class Upload(Command):
         workflow_ids = []
         for wf in parsed_args.workflow.split(","):
             try:
-                workflow_ids.append(
-                    list(filter(lambda x: x["name"] == wf_mapping.get(wf, wf), enabled_workflows))[0]["id"]
-                )
+                wf_name, wf_version, *_ = (wf+':').split(':')
+                
+                version_to_wf = {
+                    workflow['version']: workflow 
+                    for workflow in filter(lambda x: x["name"] == CLI_NAME_TO_WF_NAME.get(wf_name, wf_name), enabled_workflows)
+                }
+                
+                wf_version = wf_version or max(version_to_wf.keys(), key=StrictVersion)
+                wf = version_to_wf.get(wf_version)
+                if not wf:
+                    raise Exception(f'Workflow version {wf_version} is not available for {wf_name}')
+                
+                workflow_ids.append(wf['id'])
             except IndexError as e:
                 raise Exception(f"'{wf}' workflow is not enabled") from e
 

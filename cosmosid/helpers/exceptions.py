@@ -33,6 +33,14 @@ class AuthenticationFailed(CosmosidException):
     message = "Authentication Failed. Wrong API Key."
 
 
+class CosmosidConnectionError(CosmosidException):
+    pass
+
+
+class CosmosidServerError(CosmosidException):
+    pass
+
+
 class NotEnoughCredits(CosmosidException):
     name = "NoCredits"
     status_code = 402
