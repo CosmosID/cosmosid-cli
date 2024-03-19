@@ -1,11 +1,11 @@
 # Changelog
 
-## [2.1.10]
+## [2.1.11]
 
 ### Changed
 
 * The command [workflows](README.md#workflows) shows enabled workflows
-* the workflow parameter allows version specification: ex. `taxa:1.1.0`
+* The workflow parameter allows version specification: ex. `taxa:1.1.0`
 
 
 ## [2.1.9]
