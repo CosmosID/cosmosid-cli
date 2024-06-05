@@ -7,6 +7,8 @@ import threading
 import time
 import traceback
 import typing
+import uuid
+import re
 from datetime import datetime as dt
 from functools import wraps
 
@@ -30,6 +32,50 @@ def log_traceback(ex):
     LOGGER.debug("", exc_info=True)
     sys.exit(1)
 
+def is_uuid(value):
+    try:
+        uuid.UUID(value)
+        return value
+    except ValueError:
+        raise ValidationError("Invalid UUID: {}".format(value))
+
+def sanitize_name(fs_name):
+    """
+    Validates the given file system name.
+
+    The file system name should only contain:
+    _letters, numbers, dashes, underscores, and periods._
+    If the name contains multiple chunks separated by spaces, 
+    each chunk is validated individually and then joined back with spaces.
+
+    Args:
+        fs_name (str): The file system name to be validated.
+
+    Returns:
+        str: The validated file system name.
+
+    Raises:
+        ValueError: If the file system name is invalid.
+
+    """
+    # split name by spaces, validate each chunk and join back with spaces    
+    fs_name = fs_name.strip()
+    chunks = fs_name.split(" ")
+    r_name = re.compile(r"^[a-zA-Z0-9_\-.]+$")    
+    format_err = "Invalid format: can contain only letters, numbers, dashes, underscores and periods."
+    if len(chunks) > 1:
+        new_name = []
+        for chunk in chunks:
+            chunk = chunk.strip()
+            if not chunk:
+                continue            
+            if not r_name.match(chunk):
+                raise ValueError(format_err)
+            new_name.append(chunk)
+        fs_name = " ".join(new_name)
+    elif not r_name.match(fs_name):
+        raise ValueError(format_err)
+    return fs_name
 
 def key_len(value, type_="ApiKey"):
     """Ensure an API Key or ID has valid length."""

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import uuid
 from os.path import isfile, split, splitext
 from urllib.parse import urlparse
 
@@ -57,6 +58,7 @@ class Artifacts(object):
         if not output_file:
             parsed_url = urlparse(url)
             _, output_file = split(parsed_url.path)
+            output_file = f'{str(uuid.uuid4())[:8]}-{output_file}'
         if not output_dir:
             output_dir = os.getcwd()
         file_full_path = f"{output_dir}/{output_file}"

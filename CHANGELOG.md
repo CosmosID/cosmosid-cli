@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.17]
+
+* Added `mkdir` command [Make Directory](README.md#make-directory)
+
+## [2.1.16]
+
+### Changed
+
+* Added `--timeout` configuration to [Reports](README.md#generate-analysis-report-archive) command.
+* Added support for running `champ_core:1.0.0` workflow.
+* Added support for downloading `champ-supplementary` artifact.
+* Added to command [Runs](README.md#retrieve-sample-runs) results table `created, workflow_name, workflow_version, artifact_types`
+
+
 ## [2.1.14]
 
 ### Changed

@@ -93,6 +93,7 @@ in your sample with our new Bacterial Beta Database 2.1.0.''',
       with our novel Probabilistic Smith-Waterman read-alignment approach. The resulting integration not only
       augments the ability to estimate taxa abundance but also enhances the classification accuracy and
       precision. Experience accurate microbiome community characterization with "Taxa-Kepler"''',
+    ('champ_core', '1.0.0'): '''CHAMP Core ...''',
 }
 
 CLI_NAME_TO_WF_NAME = {

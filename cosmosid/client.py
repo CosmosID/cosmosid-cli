@@ -41,6 +41,8 @@ class CosmosidApi:
             api_key = utils.key_len(api_key)
         except ValidationError as err:
             utils.log_traceback(err)
+        if not base_url.endswith("cosmosid.com"):
+            raise CosmosidException("Base url is not valid!")
         base_url = base_url or self.BASE_URL
         if base_url != self.BASE_URL:
             self.logger.info("Using base URL: %s", base_url)
@@ -83,10 +85,16 @@ class CosmosidApi:
         except Exception as err:
             self.logger.error("Failed to get listing of directory %s", parent)
             utils.log_traceback(err)
-    
+
+    def make_dir(self, name, parent_id=None):
+        file_obj = Files(base_url=self.base_url, api_key=self.api_key)
+        new_folder_id = file_obj.make_dir(name=name, parent_id=parent_id)
+        return new_folder_id    
+
+
     def get_enabled_workflows(self):
         workflow_api = Workflow(base_url=self.base_url, api_key=self.api_key)
-        return workflow_api.get_workflows()            
+        return workflow_api.get_workflows()
 
     def import_workflow(self, workflow_ids, pairs, file_type, parent_id=None, host_name=None, forward_primer=None, reverse_primer=None):
         import_wf = ImportWorkflow(base_url=self.base_url, api_key=self.api_key)
@@ -113,7 +121,7 @@ class CosmosidApi:
                 file_type,
                 parent_id,
                 host_name,
-                forward_primer, 
+                forward_primer,
                 reverse_primer,
             )
         except NotFoundException as err:
@@ -188,7 +196,7 @@ class CosmosidApi:
             if artifacts_content.get('message'):
                 raise Exception(artifacts_content['message'])
             raise Exception("No data.")
-            
+
         if url:
             sys.stdout.write(artifacts_content["data"])
             sys.stdout.flush()
@@ -217,15 +225,15 @@ class CosmosidApi:
                     f"\nThere are no artifacts for run id {artifacts_content['run_id']}"
                 )
                 return (header, [[" " for _ in range(len(header))]])
-
+            self.logger.info(f"Artifacts list for run id: {run_id}")
             body = [[i["artifact_type"]]
                     for i in artifacts_content["artifacts"]]
             return (header, body)
 
-    def report(self, file_id=None, output_file=None, output_dir=None):
+    def report(self, file_id=None, output_file=None, output_dir=None, timeout=300):
         """Upload single file."""
         report = Reports(base_url=self.base_url,
-                         api_key=self.api_key, file_id=file_id)
+                         api_key=self.api_key, file_id=file_id, timeout=timeout)
         try:
             file_obj = Files(base_url=self.base_url, api_key=self.api_key)
             res = file_obj.get_file(file_id=file_id)
@@ -248,26 +256,7 @@ class CosmosidApi:
     def sample_run_list(self, file_id):
         """Get list of runs for a given file id."""
         sample_runs = Runs(base_url=self.base_url, api_key=self.api_key)
-        try:
-            sample_run_list = sample_runs.get_runs_list(file_id=file_id)
-            if sample_run_list:
-                if sample_run_list["status"]:
-                    return sample_run_list
-                else:
-                    raise NotFoundException(sample_run_list["message"])
-            else:
-                raise CosmosidException(
-                    f"Error occurred on get list of runs for a File: {file_id}"
-                )
-        except NotFoundException as err:
-            self.logger.error("NotFound")
-            utils.log_traceback(err)
-        except CosmosidException as err:
-            self.logger.error("Get runs list exception")
-            utils.log_traceback(err)
-        except Exception as err:
-            self.logger.error("Client exception occurred")
-            utils.log_traceback(err)
+        return sample_runs.get_runs_list(file_id=file_id)
 
     def pricing(self, data):
         """Get pricing information for the given list of samples and their sizes

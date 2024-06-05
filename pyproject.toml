@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cosmosid_cli"
-version = "2.1.14"
+version = "2.1.17"
 description = "Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API"
 authors = ["CosmosID <support@cosmosid.com>"]
 readme = "README.md"
@@ -60,6 +60,7 @@ cosmosid = "cosmosid.cli:main"
 
 [tool.poetry.plugins."cosmosid"]
 files = "cosmosid.commands.files:Files"
+mkdir = "cosmosid.commands.mkdir:MakeDir"
 runs = "cosmosid.commands.runs:Runs"
 analysis = "cosmosid.commands.analysis:Analysis"
 upload = "cosmosid.commands.upload:Upload"

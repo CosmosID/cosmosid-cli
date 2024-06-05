@@ -17,11 +17,10 @@ from cosmosid.helpers.exceptions import (
 
 LOGGER = logging.getLogger(__name__)
 
-
 class Files(object):
     """Files structure."""
 
-    def __init__(self, base_url=None, api_key=None):
+    def __init__(self, base_url, api_key):
         self.base_url = base_url
         self.logger = LOGGER
         self.auth_header = {"X-Api-Key": api_key}
@@ -158,6 +157,37 @@ class Files(object):
             self.logger.error("Response Status Code: %s", results.status_code)
             utils.log_traceback(err)
 
+    def make_dir(self, name, parent_id=None):
+        """
+        Create a new folder in the parent folder.
+        :param name: name of the new folder
+        :param parent_id: parent folder id (default is root)
+        :return: created folder id
+        """
+        request_url = f"{self.base_url}/api/metagenid/v1/files"
+        if parent_id is None:
+            parent_id = 0 # to make falsy value
+        data = {"type": 1, "parent": parent_id, "name": name}
+        try:
+            response = requests.post(
+                request_url, headers=self.auth_header, json=data
+            )
+        except requests.exceptions.RequestException as err:
+            self.logger.error("Error occurred during request")
+            utils.log_traceback(err)
+            raise CosmosidException("Error occurred during folder creation.")
+        if response.status_code == 201:
+            response_data = response.json()
+            # V1 always return a list of created items
+            return response_data["created"][0]
+        if response.status_code == 403:
+            raise AuthenticationFailed(
+                "Not Authorized, check credentials.")
+        if response.status_code == 404:
+            raise NotFound(f"Parent folder:{parent_id} is not found.")
+        
+        raise CosmosidException(
+                        "Error occurred during folder creation.")
 
 class Runs(Files):
     __resource_path = "/api/metagenid/v1/files/{file_id}/runs"
@@ -171,7 +201,7 @@ class Runs(Files):
                     f"Error occurred on get list of runs for a File: {file_id}"
                 )
 
-            if not runs_list["status"]:
+            if not runs_list.get("status"):
                 raise NotFoundException(runs_list["message"])
 
             sorted_runs_list = sorted(
@@ -236,7 +266,7 @@ class Runs(Files):
                     f"Response from service is empty for file id {file_id}"
                 )
 
-            if not file_metadata["status"]:
+            if not file_metadata.get("status"):
                 raise NotFoundException(file_metadata["message"])
             results = requests.get(sample_runs_url, headers=self.auth_header)
             if (
@@ -255,6 +285,22 @@ class Runs(Files):
             results.raise_for_status()
             if requests.codes.ok:
                 results = results.json()
+                if results:
+                    file_name = ""
+                    for index, run in enumerate(results["runs"]):
+                        run_url = f"{self.base_url}{self.__single_run_path.format(run_id=run['id'])}"
+                        run_results = requests.get(run_url, headers=self.auth_header)
+                        run_results = run_results.json()
+                        if run_results["workflows"]["name"] in ("import",):
+                            del results["runs"][index]
+                        run["workflow_name"] = run_results["workflows"]["name"]
+                        run["workflow_version"] = run_results["workflows"]["version"]
+                        run["artifact_types"] = ",".join(run_results["artifacts"])
+                        if not file_name:
+                            file_name = run_results["file"]["name"]
+                        results["file_name"] = file_name
+                    return results
+
                 results.update({"status": 1})
                 results.update({"file_name": file_metadata["name"]})
                 return results

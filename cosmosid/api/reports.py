@@ -32,7 +32,7 @@ class RunReportResponseStatus:
 class Reports(object):
     _resource_path = "/api/metagenid/v2/files/report/tsv"
 
-    def __init__(self, base_url=None, api_key=None, file_id=None):
+    def __init__(self, base_url=None, api_key=None, file_id=None, timeout=5 * 60):
         self.base_url = base_url
         self.logger = LOGEGR
         self.header = {"X-Api-Key": api_key}
@@ -41,6 +41,7 @@ class Reports(object):
         self.run_o = Runs(base_url=self.base_url, api_key=self.header["X-Api-Key"])
         self.session = requests_retry_session(self.header)
         self.session.headers.update()
+        self.timeout = timeout
 
     def await_report_task(self, task_id, timeout=5 * 60):
         task_url = f"{self.base_url}/api/metagenid/v2/files/report/{task_id}"
@@ -86,7 +87,7 @@ class Reports(object):
 
         results.raise_for_status()
         task_resp = results.json()
-        result = self.await_report_task(task_id=task_resp["id"])
+        result = self.await_report_task(task_id=task_resp["id"], timeout=self.timeout)
         result.update(status=1)
         return result
 

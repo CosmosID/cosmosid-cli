@@ -45,14 +45,21 @@ class Analysis(Lister):
 
         analysis_content = self.app.cosmosid.analysis_list(
             file_id=f_id, run_id=r_id)
-        header = ["id", "database", "strains", "strains_filtered", "status"]
+        header = [
+            "id",
+            "database_name",
+            "database_version",
+            "strains",
+            "strains_filtered",
+            "status",
+        ]
         if analysis_content:
             if not analysis_content["analysis"]:
                 self.app.logger.info(
                     "\nThere are no analysis for run id %s", analysis_content["run_id"]
                 )
 
-                for_output = [[" ", " ", " ", " ", " "]]
+                for_output = [["" for _ in header]]
                 return (header, for_output)
         else:
             raise Exception("Exception occured.")
@@ -74,21 +81,23 @@ class Analysis(Lister):
 
         def _convert(inp):
             database = inp["database"]
+            version = inp["version"]
             db_description = database["description"]
+            db_version = version["database_version"]
             for item in inp.items():
-                for k, v in field_maps.items():
+                for _, v in field_maps.items():
                     if item[0] == v[0]:
-                        inp[item[0]] = (
-                            field_maps[k][2](item)
-                            if item[0] != "database"
-                            else db_description
-                        )
+                        if item[0] == "database":
+                            inp[item[0]] = db_description
+                        if item[0] == "version":
+                            inp[item[0]] = db_version
                         break
             return inp
 
         field_maps = {
             "id": ["id", "str", _del_none],
-            "database": ["database", "str", _del_none],
+            "database_name": ["database", "str", _del_none],
+            "database_version": ["version", "str", _del_none],
             "status": ["status", "str", _del_none],
             "strains": ["strains", "int", _del_none],
             "strains_filtered": ["strains_filtered", "int", _del_none],

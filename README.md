@@ -100,6 +100,27 @@ There are several types of commands supported by the CosmosID-HUB CLI
 > Note: Each command has options. To get usage information for each CosmosID-HUB CLI command, the user can simply
 > run `cosmosid <command> --help`
 
+### Make Directory
+
+The command to make a new directory or sub-directory. See --help for options:
+
+```
+usage: cosmosid mkdir [-h] [--parent PARENT] [--name NAME]
+
+Make a new directory in a given directory.
+
+options:
+  -h, --help            show this help message and exit
+  --parent PARENT, -p PARENT
+                        ID of the parent directory. Default: Root
+  --name NAME, -n NAME
+                        Name of the new directory
+```
+Example to create a `New` in some parent (`41dad2d0-dcf2-429c-8e06-1ebea192985d`):
+```shell
+cosmosid --api_key=your-key mkdir -n New -p 41dad2d0-dcf2-429c-8e06-1ebea192985d
+```
+
 ### Retrieve Files
 
 The commands for retrieving data have options for output format. The user can get data into the terminal (or another
@@ -223,6 +244,17 @@ To retrieve sample run(s) associated with a file simply run the `cosmosid` comma
 ```shell
 #to get runs associated with a speciffic file (sample)
 cosmosid runs --id=<file_id>
+
+#command output:
+
+Runs list for file example_2.fastq.gz (id: 5020a209-30b8-4fb3-bd78-b9fa1cd9f3ae)
+
++--------------------------------------+---------------------+---------------+------------------+---------+--------------------------------------+
+| id                                   | created             | workflow_name | workflow_version | status  | artifact_types                       |
++--------------------------------------+---------------------+---------------+------------------+---------+--------------------------------------+
+| a3dfe717-15d0-5053-a5b7-5c24597b73b4 | 2022-05-16 17:41:13 | ura           | 1.0.0            | Success | ura                                  |
+| d722bfcb-a3e7-4617-9141-20f5168e8c2f | 2022-05-16 17:40:15 | amr_vir       | 1.0.0            | Success | functional-pathway,functional-goterm |
++--------------------------------------+---------------------+---------------+------------------+---------+--------------------------------------+
 ```
 
 ### Upload files
@@ -467,7 +499,8 @@ To retrieve an analysis report archive with TSV files run the `cosmosid` command
 
 ```shell
 $ cosmosid reports --help
-usage: cosmosid reports [-h] --id ID [--output OUTPUT | --dir DIR]
+usage: cosmosid reports [-h] --id ID [--timeout TIMEOUT]
+                        [--output OUTPUT | --dir DIR]
 
 Get analysis reports TSV
 
@@ -475,6 +508,8 @@ optional arguments:
   -h, --help            show this help message and exit
   --id ID, -i ID
                         ID of cosmosid sample.
+  --timeout TIMEOUT, -t TIMEOUT
+                        The timeout in seconds. Default: 5 minutes.
   --output OUTPUT, -o OUTPUT
                         output file name. Must have .zip extension. Default: is equivalent to cosmosid file name.
   --dir DIR, -d DIR

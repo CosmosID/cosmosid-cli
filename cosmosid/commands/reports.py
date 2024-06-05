@@ -16,6 +16,14 @@ class Reports(Command):
             type=argument_validators.uuid,
             help="ID of cosmosid sample.",
         )
+        parser.add_argument(
+            "--timeout",
+            "-t",
+            action="store",
+            type=int,
+            default=5 * 60,
+            help="The timeout in seconds. Default: 5 minutes.")
+        
         grp = parser.add_mutually_exclusive_group(required=False)
         grp.add_argument(
             "--output",
@@ -34,8 +42,9 @@ class Reports(Command):
 
         output_file = parsed_args.output if parsed_args.output else None
         output_dir = parsed_args.dir if parsed_args.dir else None
+        timeout = parsed_args.timeout
         response = self.app.cosmosid.report(
-            file_id=f_id, output_file=output_file, output_dir=output_dir
+            file_id=f_id, output_file=output_file, output_dir=output_dir, timeout=timeout
         )
         if response:
             self.app.logger.info("\nReport has been saved to: %s", response["saved_report"])

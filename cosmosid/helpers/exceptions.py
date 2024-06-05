@@ -26,6 +26,8 @@ class CosmosidException(Exception):
         exception.additional_data = dict_
         return exception
 
+class PermissionDenied(CosmosidException):
+    pass
 
 class AuthenticationFailed(CosmosidException):
     name = "NoAuth"
@@ -88,6 +90,14 @@ class NotValidFileExtension(CosmosidException):
 
 class WrongFlagException(CosmosidException):
     pass
+
+
+class CosmosidFileException(CosmosidException):
+    def __init__(self, code_status):
+        if code_status == AuthenticationFailed.status_code:
+            return AuthenticationFailed
+        if code_status == NotFound.status_code:
+            return NotFound
 
 
 class DownloadSamplesException(CosmosidException):
