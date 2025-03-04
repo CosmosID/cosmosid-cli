@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cosmosid_cli"
-version = "2.1.17"
+version = "2.1.18"
 description = "Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API"
 authors = ["CosmosID <support@cosmosid.com>"]
 readme = "README.md"

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.18]
+
+* Added Unilever supplementary artifact support
+* Added CHAMP and Unilever workflow descriptions
+* Fixed error when running commands without --base_url
+* Added `--fastqc-only` parameter for `upload` command
+
 ## [2.1.17]
 
 * Added `mkdir` command [Make Directory](README.md#make-directory)

@@ -33,7 +33,7 @@ class CosmosidApi:
     logger = logging.getLogger(__name__)
     BASE_URL = "https://app.cosmosid.com"
 
-    def __init__(self, api_key=None, base_url=BASE_URL):
+    def __init__(self, api_key=None, base_url=None):
         """Initialize a client with the given params."""
         try:
             if not api_key:
@@ -41,8 +41,10 @@ class CosmosidApi:
             api_key = utils.key_len(api_key)
         except ValidationError as err:
             utils.log_traceback(err)
+        if base_url is None:
+            base_url = self.BASE_URL
         if not base_url.endswith("cosmosid.com"):
-            raise CosmosidException("Base url is not valid!")
+            self.logger.warning(f"Check the base url {base_url}, it is not standard.")            
         base_url = base_url or self.BASE_URL
         if base_url != self.BASE_URL:
             self.logger.info("Using base URL: %s", base_url)

@@ -28,7 +28,7 @@ class Artifacts(Lister):
         parser.add_argument(
             "--type",
             "-t",
-            choices=["fastqc-zip", "champ-supplementary"],
+            choices=["fastqc-zip", "champ-supplementary","unilever-supplementary"],
             type=str,
             help="Artifact type to download",
         )
