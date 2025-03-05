@@ -274,7 +274,8 @@ CosmosID supports the following types of analysis:
 ```shell
 # cosmosid upload --help
 usage: cosmosid upload [-h] [--file FILE] [--parent PARENT] --type {metagenomics,amplicon-16s,amplicon-its}
-                       [-wf WORKFLOW] [--forward-primer FORWARD_PRIMER] [--reverse-primer REVERSE_PRIMER]
+                       [-wf WORKFLOW] [--fastqc-only] 
+                       [--forward-primer FORWARD_PRIMER] [--reverse-primer REVERSE_PRIMER]
                        [--amplicon-preset {v1_v3,v3_v4,v4}]
                        [--host-name {human:2.0.0,human:1.0.0,dog:2.0.0,domestic_cat:2.0.0,cow:1.0.0,chicken:2.0.0,mouse:2.0.0,monkey:2.0.0,cattle:2.0.0,pig:2.0.0}]
                        [--dir DIR]
@@ -295,7 +296,8 @@ optional arguments:
                         -wf amr_vir,taxa
                         To specify workflow verions, define it by ':'. For example:
                         -wf taxa:1.1.0,amr_vir
-
+  --fastqc-only
+                        Skip workflows selection, fastq files will be processed through the FastQC workflow.
   --forward-primer FORWARD_PRIMER
                         Only for 'ampliseq' workflow
   --reverse-primer REVERSE_PRIMER

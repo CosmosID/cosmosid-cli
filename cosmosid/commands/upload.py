@@ -86,6 +86,13 @@ class Upload(Command):
         )
 
         parser.add_argument(
+            "--fastqc-only",
+            help="Run only FastQC workflow",
+            action="store_true",
+            default=False
+        )
+
+        parser.add_argument(
             "--forward-primer",
             help="Only for 'ampliseq' workflow",
             type=argument_validators.is_primer,
@@ -133,6 +140,7 @@ class Upload(Command):
         parent_id = parsed_args.parent if parsed_args.parent else None
         directory = parsed_args.dir if parsed_args.dir else None
         files = parsed_args.file if parsed_args.file else None
+        fastqc_only = parsed_args.fastqc_only
         
         try:
             enabled_workflows = self.app.cosmosid.get_enabled_workflows()
@@ -175,30 +183,32 @@ class Upload(Command):
                         directory=directory
                     )
                 )
-
         workflow_ids = []
-        for wf in parsed_args.workflow.split(","):
-            try:
-                wf_name, wf_version, *_ = (wf+':').split(':')
-                
-                version_to_wf = {
-                    workflow['version']: workflow 
-                    for workflow in filter(lambda x: x["name"] == CLI_NAME_TO_WF_NAME.get(wf_name, wf_name), enabled_workflows)
-                }
-                
-                wf_version = wf_version or max(version_to_wf.keys(), key=StrictVersion)
-                wf = version_to_wf.get(wf_version)
-                if not wf:
-                    raise Exception(f'Workflow version {wf_version} is not available for {wf_name}')
-                
-                workflow_ids.append(wf['id'])
-            except IndexError as e:
-                raise Exception(f"'{wf}' workflow is not enabled") from e
+        if fastqc_only:
+            self.app.logger.info("\nOnly FastQC workflow will be run, workflow parameter is ignored.")        
+        else:
+            for wf in parsed_args.workflow.split(","):
+                try:
+                    wf_name, wf_version, *_ = (wf+':').split(':')
+                    
+                    version_to_wf = {
+                        workflow['version']: workflow 
+                        for workflow in filter(lambda x: x["name"] == CLI_NAME_TO_WF_NAME.get(wf_name, wf_name), enabled_workflows)
+                    }
+                    
+                    wf_version = wf_version or max(version_to_wf.keys(), key=StrictVersion)
+                    wf = version_to_wf.get(wf_version)
+                    if not wf:
+                        raise Exception(f'Workflow version {wf_version} is not available for {wf_name}')
+                    
+                    workflow_ids.append(wf['id'])
+                except IndexError as e:
+                    raise Exception(f"'{wf}' workflow is not enabled") from e
 
-        if not workflow_ids:
-            raise RuntimeError(
-                f"All workflows from the given list '{parsed_args.workflow}' are not enabled, file(s) cannot be uploaded. Aborting."
-            )
+            if not workflow_ids:
+                raise RuntimeError(
+                    f"All workflows from the given list '{parsed_args.workflow}' are not enabled, file(s) cannot be uploaded. Aborting."
+                )
 
         forward_primer = None
         reverse_primer = None
@@ -244,7 +254,7 @@ class Upload(Command):
             if cur_ext not in self.allowed_extensions:
                 raise Exception(
                     "not supported file extension for file {}".format(fname))
-                return
+
             if cur_fname == prev_fname and prev_ext == cur_ext:
                 paired_ended["files"].append(fname)
             else:
@@ -287,8 +297,15 @@ class Upload(Command):
             # In case some file don't have pair, we get this file and upload it as single sample
             if len(pair.get("files")) == 1:
                 pair.update(sample_name=os.path.basename(pair.get("files")[0]))
+
         self.app.cosmosid.import_workflow(
-            workflow_ids, pairs, parsed_args.type, parent_id, parsed_args.host_name, forward_primer, reverse_primer
+            workflow_ids=workflow_ids,
+             pairs=pairs,
+             file_type=parsed_args.type,
+             parent_id=parent_id,
+             host_name=parsed_args.host_name,
+             forward_primer=forward_primer,
+             reverse_primer=reverse_primer,             
         )
         self.app.logger.info("\nFiles have been sent to analysis.")
         self.app.logger.info("Task Done")

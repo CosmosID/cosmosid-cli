@@ -29,9 +29,9 @@ class CosmosidApp(App):
     def build_option_parser(self, description, version, argparse_kwargs=None):
         """CMD arguments parser."""
         parser = super(CosmosidApp, self).build_option_parser(description, version, argparse_kwargs)
-        parser.add_argument("--api_key", default=False, required=False, help="api key")
+        parser.add_argument("--api_key", required=False, help="api key")
         parser.add_argument(
-            "--base_url", default=False, required=False, help="CosmosID API base url"
+            "--base_url", required=False, help="CosmosID API base url"
         )
         return parser
 

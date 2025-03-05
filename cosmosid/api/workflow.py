@@ -9,9 +9,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Workflow(object):
-    def __init__(self, base_url=None, api_key=None):
+    def __init__(self, base_url=None, api_key=None, logger=LOGGER):
+        
+        if base_url is None:
+            raise ValueError("base_url must be provided") # pragma: no cover
+        
+        if api_key is None:
+            raise ValueError("api_key must be provided")  # pragma: no cover
+        
         self.base_url = base_url
-        self.logger = LOGGER
+        self.logger = logger
         self.header = {"X-Api-Key": api_key, "Content-Type": "application/json"}
 
     def get_workflows(self):
