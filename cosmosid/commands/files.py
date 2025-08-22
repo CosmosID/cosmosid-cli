@@ -25,9 +25,7 @@ class Files(Lister):
             type=str,
             help="field for ordering",
         )
-        parser.add_argument(
-            "--up", action="store_true", default=False, help="order direction"
-        )
+        parser.add_argument("--up", action="store_true", default=False, help="order direction")
         return parser
 
     def take_action(self, parsed_args):
@@ -41,6 +39,7 @@ class Files(Lister):
             "4": "Listeria Sample",
             "5": "Amplicon 16S Sample",
             "6": "Amplicon ITS Sample",
+            "15": "Long Read Amplicon",
         }
         header = ["type", "name", "id", "status", "reads", "created"]
         if folder_content:
@@ -53,22 +52,16 @@ class Files(Lister):
 
         def _set_date(input_date):
             try:
-                utc_time_tuple = time.strptime(
-                    input_date[1], "%Y-%m-%dT%H:%M:%S.%f")
+                utc_time_tuple = time.strptime(input_date[1], "%Y-%m-%dT%H:%M:%S.%f")
             except Exception:
-                utc_time_tuple = time.strptime(
-                    input_date[1], "%Y-%m-%dT%H:%M:%S")
+                utc_time_tuple = time.strptime(input_date[1], "%Y-%m-%dT%H:%M:%S")
             local_time = calendar.timegm(utc_time_tuple)
             return datetime.fromtimestamp(local_time).strftime("%Y-%m-%d %H:%M:%S")
 
         def _del_none(inp):
             out = [inp[1]]
             if not out[0]:
-                out = [
-                    0 if v[1] == "int" else "-"
-                    for _, v in field_maps.items()
-                    if inp[0] == v[0]
-                ]
+                out = [0 if v[1] == "int" else "-" for _, v in field_maps.items() if inp[0] == v[0]]
             return out[0]
 
         def _set_dim(inp):
@@ -77,11 +70,7 @@ class Files(Lister):
             return out if out != "0B" else "-"
 
         def _set_type(inp):
-            ctype = (
-                content_type_map[str(inp[1])]
-                if content_type_map.get(str(inp[1]))
-                else inp[1]
-            )
+            ctype = content_type_map[str(inp[1])] if content_type_map.get(str(inp[1])) else inp[1]
             return ctype
 
         def _convert(inp):
@@ -112,12 +101,7 @@ class Files(Lister):
                     reverse=(not parsed_args.up),
                 )
         for_output = [
-            [
-                item[field_maps[f][0]]
-                if f != "reads"
-                else _set_dim(item[field_maps[f][0]])
-                for f in header
-            ]
+            [item[field_maps[f][0]] if f != "reads" else _set_dim(item[field_maps[f][0]]) for f in header]
             for item in items_data
         ]
         self.app.logger.info(f"\nContent of the Folder {parent}")

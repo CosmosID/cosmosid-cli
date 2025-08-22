@@ -54,22 +54,6 @@ loggers:
     level: NOTSET
     handlers: [screen_info, logfile]
     propagate: no
-  s3transfer:
-    level: NOTSET
-    handlers: [logfile,]
-    propagate: no
-  boto:
-    level: NOTSET
-    handlers: [logfile,]
-    propagate: no
-  boto3:
-    level: NOTSET
-    handlers: [logfile,]
-    propagate: no
-  botocore:
-    level: NOTSET
-    handlers: [screen_info, logfile]
-    propagate: no
   __main__:
     level: NOTSET
     handlers: [logfile, screen_info]

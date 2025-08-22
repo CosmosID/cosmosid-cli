@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cosmosid_cli"
-version = "2.1.18"
+version = "2.1.19"
 description = "Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API"
 authors = ["CosmosID <support@cosmosid.com>"]
 readme = "README.md"
@@ -28,8 +28,6 @@ Changelog = "https://github.com/CosmosID/cosmosid-cli/blob/master/CHANGELOG.md"
 [tool.poetry.dependencies]
 python = ">=3.6.2, <4"
 requests = ">=2.27.1"
-boto3 = ">=1.21.28"
-s3transfer = ">=0.5.2"
 cliff = ">=3.10.1"
 concurrent-log-handler = "^0.9.20"
 pycurl = { version = "^7.45.1", optional = true }
@@ -53,7 +51,10 @@ build-backend = "poetry.core.masonry.api"
 multi_line_output = 3
 include_trailing_comma = true
 force_grid_wrap = 0
-line_length = 88
+line_length = 120
+
+[tool.black]
+line-length = 120
 
 [tool.poetry.scripts]
 cosmosid = "cosmosid.cli:main"

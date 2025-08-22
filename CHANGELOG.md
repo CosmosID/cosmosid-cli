@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.19]
+
+* Added support for running `UL ITS` workflow 
+* Added support for running `Long Read` workflows
+* Removed outdated `s3transfer` library and added MD5 checksum validation for multipart upload
+* Fixed multi-user blocking through shared lock file (lock stored per user)
+
 ## [2.1.18]
 
 * Added UL16s supplementary artifact support

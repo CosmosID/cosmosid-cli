@@ -8,7 +8,7 @@ import yaml
 from cliff.app import App
 from cliff.commandmanager import CommandManager
 from cliff.complete import CompleteCommand
-from cliff.help import HelpAction, HelpCommand
+from cliff.help import HelpCommand
 from cosmosid import __version__
 from cosmosid.client import CosmosidApi
 
@@ -37,9 +37,9 @@ class CosmosidApp(App):
 
     def _print_help(self):
         """Generate the help string using cliff.help.HelpAction."""
-
-        action = HelpAction(None, None, default=self)
-        action(self.parser, self.options, None, None)
+        # Simplified help printing; constructing HelpAction with None parameters caused type issues.
+        if self.parser:
+            self.parser.print_help()
 
     def initialize_app(self, argv):
         """Overrides: cliff.app.initialize_app
@@ -70,14 +70,32 @@ def main(argv=None):
     log_conf = os.path.join(__location__, "logger_config.yaml")
     with open(log_conf, "rt") as conf_fl:
         config = yaml.safe_load(conf_fl.read())
+    # Place log file in a per-user writable location to avoid cross-user lock contention
     try:
-        log_file = config["handlers"]["logfile"]["filename"]
-        temp_dir = tempfile.gettempdir()
-        config["handlers"]["logfile"]["filename"] = os.path.join(temp_dir, log_file)
+        handler_cfg = config["handlers"]["logfile"]
+        log_file = handler_cfg["filename"]
+        # Determine base directory preference order for log + lock
+        user_base = (
+            os.environ.get("COSMOSID_LOG_DIR")
+            or os.environ.get("XDG_STATE_HOME")
+            or os.path.join(os.path.expanduser("~"), ".local", "state", "cosmosid")
+        )
+        try:
+            os.makedirs(user_base, exist_ok=True)
+        except Exception:
+            user_base = os.path.join(tempfile.gettempdir(), f"cosmosid-{os.getuid()}")
+            os.makedirs(user_base, exist_ok=True)
+        handler_cfg["filename"] = os.path.join(user_base, log_file)
     except KeyError:
         pass
     logging.config.dictConfig(config)
     cosmosid = CosmosidApp()
+    # Parse verbosity early to adjust root logger before commands execute
+    # (cliff will parse again inside run but we want logging level debug now)
+    args_list = argv or []
+    debug_forced = '--debug' in args_list    
+    if debug_forced:
+        logging.getLogger().setLevel(logging.DEBUG)
     return cosmosid.run(argv)
 
 

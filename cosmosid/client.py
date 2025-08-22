@@ -2,7 +2,6 @@
 
 import logging
 import sys
-from requests.exceptions import ConnectionError
 
 import cosmosid.api.upload as upload
 import cosmosid.utils as utils
@@ -44,12 +43,12 @@ class CosmosidApi:
         if base_url is None:
             base_url = self.BASE_URL
         if not base_url.endswith("cosmosid.com"):
-            self.logger.warning(f"Check the base url {base_url}, it is not standard.")            
+            self.logger.warning(f"Check the base url {base_url}, it is not standard.")
         base_url = base_url or self.BASE_URL
         if base_url != self.BASE_URL:
             self.logger.info("Using base URL: %s", base_url)
-        if not base_url.startswith('http'):
-            base_url = f'https://{base_url}'
+        if not base_url.startswith("http"):
+            base_url = f"https://{base_url}"
         self.base_url = base_url
         self.api_key = api_key
 
@@ -75,10 +74,7 @@ class CosmosidApi:
                 else:
                     raise NotFoundException(res["message"])
             else:
-                raise CosmosidException(
-                    "Response from service is empty " "for directory {}".format(
-                        parent)
-                )
+                raise CosmosidException("Response from service is empty " "for directory {}".format(parent))
         except NotFoundException as err:
             utils.log_traceback(err)
         except CosmosidException as err:
@@ -91,47 +87,58 @@ class CosmosidApi:
     def make_dir(self, name, parent_id=None):
         file_obj = Files(base_url=self.base_url, api_key=self.api_key)
         new_folder_id = file_obj.make_dir(name=name, parent_id=parent_id)
-        return new_folder_id    
-
+        return new_folder_id
 
     def get_enabled_workflows(self):
         workflow_api = Workflow(base_url=self.base_url, api_key=self.api_key)
         return workflow_api.get_workflows()
 
-    def import_workflow(self, workflow_ids, pairs, file_type, parent_id=None, host_name=None, forward_primer=None, reverse_primer=None):
+    def import_workflow(
+        self,
+        workflow_ids,
+        pairs,
+        file_type,
+        parent_id=None,
+        host_name=None,
+        forward_primer=None,
+        reverse_primer=None,
+        *,
+        concurrency=None,
+        part_size_mb=None,
+        long_read_params=None,
+    ):
         import_wf = ImportWorkflow(base_url=self.base_url, api_key=self.api_key)
         try:
             for pair in pairs:
-                for file in pair['files']:
-                    pair.setdefault('files_s3', []).append(
+                for file in pair["files"]:
+                    pair.setdefault("files_s3", []).append(
                         upload.upload_file(
                             file=file,
                             file_type=file_type,
                             parent_id=parent_id,
                             api_key=self.api_key,
                             base_url=self.base_url,
+                            concurrency=concurrency,
+                            part_size_mb=part_size_mb,
                         )
                     )
-                    self.logger.info(f'\r{file} was uploaded.' + ' ' * 30)
+                    self.logger.info(f"\r{file} was uploaded." + " " * 30)
 
             import_wf.import_workflow(
                 workflow_ids,
-                [{
-                    "files": pair['files_s3'],
-                    "file_name": pair["sample_name"]
-                } for pair in pairs],
+                [{"files": pair["files_s3"], "file_name": pair["sample_name"]} for pair in pairs],
                 file_type,
                 parent_id,
                 host_name,
                 forward_primer,
                 reverse_primer,
+                long_read_params=long_read_params,
             )
         except NotFoundException as err:
             self.logger.error("Parent folder for upload doesn't exist.")
             raise err
         except UploadException as err:
-            self.logger.error(
-                "\nError occurred on File import: {}".format(pairs))
+            self.logger.error("\nError occurred on File import: {}".format(pairs))
             utils.log_traceback(err)
 
     def upload_files(self, files, file_type, parent_id=None):
@@ -156,7 +163,7 @@ class CosmosidApi:
     def analysis_list(self, file_id=None, run_id=None):
         """Get list of analysis for a given file id."""
         if not file_id:
-            raise CosmosidException('Wrong file id')
+            raise CosmosidException("Wrong file id")
         analysis = Analysis(base_url=self.base_url, api_key=self.api_key)
         try:
             analysis_list = analysis.get_list(file_id=file_id, run_id=run_id)
@@ -166,9 +173,7 @@ class CosmosidApi:
                 else:
                     raise NotFoundException(analysis_list["message"])
             else:
-                raise CosmosidException(
-                    "Error occurred on getting list of analysis for a File: %s" % file_id
-                )
+                raise CosmosidException("Error occurred on getting list of analysis for a File: %s" % file_id)
         except NotFoundException as err:
             self.logger.error("NotFound")
             utils.log_traceback(err)
@@ -180,23 +185,21 @@ class CosmosidApi:
             utils.log_traceback(err)
 
     def artifacts_list(
-            self,
-            run_id=None,
-            artifact_type=None,
-            output_file=None,
-            output_dir=None,
-            url=None,
+        self,
+        run_id=None,
+        artifact_type=None,
+        output_file=None,
+        output_dir=None,
+        url=None,
     ):
         """Get list of artifact for a given file id."""
         artifacts = Artifacts(base_url=self.base_url, api_key=self.api_key)
-        artifacts_content = artifacts.get_list(
-            run_id=run_id, artifact_type=artifact_type
-        )
+        artifacts_content = artifacts.get_list(run_id=run_id, artifact_type=artifact_type)
         if not artifacts_content:
             raise Exception("Exception occurred.")
-        if 'data' not in artifacts_content.keys():
-            if artifacts_content.get('message'):
-                raise Exception(artifacts_content['message'])
+        if "data" not in artifacts_content.keys():
+            if artifacts_content.get("message"):
+                raise Exception(artifacts_content["message"])
             raise Exception("No data.")
 
         if url:
@@ -223,34 +226,26 @@ class CosmosidApi:
                 raise Exception("Exception occurred.")
 
             if not artifacts_content["artifacts"]:
-                self.logger.info(
-                    f"\nThere are no artifacts for run id {artifacts_content['run_id']}"
-                )
+                self.logger.info(f"\nThere are no artifacts for run id {artifacts_content['run_id']}")
                 return (header, [[" " for _ in range(len(header))]])
             self.logger.info(f"Artifacts list for run id: {run_id}")
-            body = [[i["artifact_type"]]
-                    for i in artifacts_content["artifacts"]]
+            body = [[i["artifact_type"]] for i in artifacts_content["artifacts"]]
             return (header, body)
 
     def report(self, file_id=None, output_file=None, output_dir=None, timeout=300):
         """Upload single file."""
-        report = Reports(base_url=self.base_url,
-                         api_key=self.api_key, file_id=file_id, timeout=timeout)
+        report = Reports(base_url=self.base_url, api_key=self.api_key, file_id=file_id, timeout=timeout)
         try:
             file_obj = Files(base_url=self.base_url, api_key=self.api_key)
             res = file_obj.get_file(file_id=file_id)
             if not res:
-                raise CosmosidException(
-                    f"Response from service is empty for file id {file_id}"
-                )
+                raise CosmosidException(f"Response from service is empty for file id {file_id}")
 
-            results = report.save_report(
-                out_file=output_file, out_dir=output_dir)
+            results = report.save_report(out_file=output_file, out_dir=output_dir)
             if results["status"]:
                 return results
             else:
-                raise CosmosidException(
-                    f'{results["message"]} File id: {file_id}')
+                raise CosmosidException(f'{results["message"]} File id: {file_id}')
         except CosmosidException as err:
             self.logger.error("Save report error")
             utils.log_traceback(err)
@@ -269,9 +264,7 @@ class CosmosidApi:
 
         """
         try:
-            return upload.pricing(
-                data=data, base_url=self.base_url, api_key=self.api_key
-            )
+            return upload.pricing(data=data, base_url=self.base_url, api_key=self.api_key)
         except Exception as err:
             self.logger.error(err)
             utils.log_traceback(err)
@@ -285,51 +278,31 @@ class CosmosidApi:
             utils.log_traceback(err)
             raise
 
-    def download_samples(
-            self, samples, concurrent_downloads, display_loading=True, output_dir=None
-    ):
+    def download_samples(self, samples, concurrent_downloads, display_loading=True, output_dir=None):
         try:
-            original_samples = SamplesDownloader(
-                base_url=self.base_url, api_key=self.api_key
-            )
+            original_samples = SamplesDownloader(base_url=self.base_url, api_key=self.api_key)
 
-            file_paths = original_samples.download_samples(
-                samples, output_dir, concurrent_downloads, display_loading
-            )
+            file_paths = original_samples.download_samples(samples, output_dir, concurrent_downloads, display_loading)
             if file_paths:
                 file_paths_text = "\n".join(file_paths)
-                self.logger.info(
-                    f"\nFiles were saved:\n{file_paths_text}\n\nTask Done")
+                self.logger.info(f"\nFiles were saved:\n{file_paths_text}\n\nTask Done")
             else:
-                self.logger.error(
-                    "\nThere are not available files for downloading")
+                self.logger.error("\nThere are not available files for downloading")
             return "", ""
         except Exception as err:
             raise DownloadSamplesException(f"{err}") from err
 
     def get_analyses(self, comparative_ids):
         if comparative_ids:
-            return ComparativeAnalyses(
-                self.base_url, self.api_key
-            ).get_analyses_of_comparative(self.profile()['id'], comparative_ids)
+            return ComparativeAnalyses(self.base_url, self.api_key).get_analyses_of_comparative(
+                self.profile()["id"], comparative_ids
+            )
         return ComparativeAnalyses(self.base_url, self.api_key).get_analyses_out_of_comparatives()
 
     def get_comparatives(self):
-        return ComparativeAnalyses(self.base_url, self.api_key).get_comparatives(self.profile()['id'])
+        return ComparativeAnalyses(self.base_url, self.api_key).get_comparatives(self.profile()["id"])
 
-    def export_analyses(self,
-                        analyses_ids,
-                        export_types,
-                        concurrent_downloads,
-                        output_dir,
-                        log_scale,
-                        tax_levels
-                        ):
+    def export_analyses(self, analyses_ids, export_types, concurrent_downloads, output_dir, log_scale, tax_levels):
         return ComparativeAnalyses(self.base_url, self.api_key).export_analyses(
-            analyses_ids,
-            export_types,
-            concurrent_downloads,
-            output_dir,
-            log_scale,
-            tax_levels
+            analyses_ids, export_types, concurrent_downloads, output_dir, log_scale, tax_levels
         )

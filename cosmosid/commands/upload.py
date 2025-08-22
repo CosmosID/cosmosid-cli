@@ -5,8 +5,95 @@ from distutils.version import StrictVersion
 
 from cliff.command import Command
 from cosmosid.helpers import parser_builders, argument_actions, argument_validators
-from cosmosid.enums import AMPLICON_PRESETS, HOST_REMOVAL_OPTIONS, FILE_TYPES, Workflows, CLI_NAME_TO_WF_NAME
+from cosmosid.enums import (
+    AMPLICON_PRESETS,
+    HOST_REMOVAL_OPTIONS,
+    FILE_TYPES,
+    Workflows,
+    CLI_NAME_TO_WF_NAME,
+)
 from cosmosid.helpers.exceptions import CosmosidConnectionError, CosmosidServerError, AuthenticationFailed
+
+
+class LongReadArguments:
+    LONG_READ_WORKFLOWS = [
+        Workflows.LongRead16s18sPackage,
+        Workflows.LongRead16s18sGreengenes2Amplicon,
+        Workflows.LongRead16s18sSilvaAmplicon,
+        Workflows.LongRead16s18sGtdbSsu220Amplicon,
+        Workflows.LongRead16s18sEmuDefaultAmplicon,
+        Workflows.LongRead16s18sMidasAmplicon,
+        Workflows.LongRead16s18sHomdAmplicon,
+        Workflows.LongReadItsAmplicon,
+        Workflows.FullLengthRrnaAmplicon,
+    ]
+
+    db_choices_for_16s18s = [
+        {"key": "lr-greengenes2", "label": "GreenGenes2"},
+        {"key": "lr-silva", "label": "SILVA"},
+        {"key": "lr-gtdb", "label": "GTDB SSU 220"},
+        {"key": "lr-emu", "label": "EMU Default"},
+        {"key": "lr-midas", "label": "MIDAS"},
+        {"key": "lr-homd", "label": "HOMD"},
+    ]
+
+    long_read_args = [
+        {"key": "min-length", "default": 1200, "help": "Only for Long Read workflow. Minimum length"},
+        {"key": "max-length", "default": 10000, "help": "Only for Long Read workflow. Maximum length"},
+        {"key": "min-quality", "default": 17, "help": "Only for Long Read workflow. Minimum quality"},
+        {
+            "key": "mm2-seq-type",
+            "default": "map-ont",
+            "help": "Only for Long Read workflow. Alignment Preset settings",
+            "choices": ["map-ont", "map-hifi"],
+        },
+        {"key": "max-iterations", "default": 20, "help": "Only for Long Read workflow. Maximum EM iterations"},
+        {"key": "probability-cutoff", "default": 0.9, "help": "Only for Long Read workflow. Probability cutoff"},
+    ]
+
+    @classmethod
+    def add_db_args_for_16s18s(cls, parser):
+        """Builds arguments for 16S/18S long read databases."""
+        for db in cls.db_choices_for_16s18s:
+            parser.add_argument(
+                f"--{db['key']}",
+                action="store_true",
+                help=f"Only for Long Read workflow. Use {db['label']} database for 16S/18S Long Read analysis.",
+                default=False,
+            )
+
+    @classmethod
+    def add_long_read_args(cls, parser):
+        """Builds common long read arguments."""
+        for arg in cls.long_read_args:
+            parser.add_argument(
+                f"--{arg['key']}",
+                type=type(arg["default"]),
+                default=arg["default"],
+                help=arg["help"],
+                choices=arg.get("choices", None),
+            )
+
+    @classmethod
+    def build_wf_params(cls, parsed_args, workflow_ids):
+        """Builds workflow parameters for long read workflows."""
+        workflow_params = {}
+        if set(workflow_ids).intersection(cls.LONG_READ_WORKFLOWS):
+            workflow_params["min_length"] = parsed_args.min_length
+            workflow_params["max_length"] = parsed_args.max_length
+            workflow_params["min_quality"] = parsed_args.min_quality
+            workflow_params["mm2_seq_type"] = parsed_args.mm2_seq_type
+            workflow_params["max_iterations"] = parsed_args.max_iterations
+            workflow_params["probability_cutoff"] = parsed_args.probability_cutoff
+
+            workflow_params["long_read_greengenes2"] = parsed_args.lr_greengenes2
+            workflow_params["long_read_silva"] = parsed_args.lr_silva
+            workflow_params["long_read_gtdb_ssu_220"] = parsed_args.lr_gtdb
+            workflow_params["long_read_emu_default"] = parsed_args.lr_emu
+            workflow_params["long_read_midas"] = parsed_args.lr_midas
+            workflow_params["long_read_homd"] = parsed_args.lr_homd
+
+        return workflow_params
 
 
 class Upload(Command):
@@ -35,8 +122,7 @@ class Upload(Command):
            with name Bacteria_x. R1 and R2 endings and also L1 and L2 defines paired-end samples.
         """
         paired_end_files_suffix = r"^(.+?)(_R[12]|_R[12]_001|_L\d\d\d_R[12]|_L\d\d\d_R[12]_001|)((?:\.\w+){,2})$"
-        paired_end_file_base_name = re.match(
-            paired_end_files_suffix, file_name)
+        paired_end_file_base_name = re.match(paired_end_files_suffix, file_name)
         if paired_end_file_base_name:
             return paired_end_file_base_name.group(1), extension
         return base_name, extension
@@ -50,9 +136,7 @@ class Upload(Command):
             required=False,
             type=str,
             help="file(s) for upload. Supported file types: {} e.g. cosmosid upload -f "
-                 "/path/file1.fasta -f /path/file2.fn ".format(
-                     ", ".join(self.allowed_extensions)
-                 ),
+            "/path/file1.fasta -f /path/file2.fn ".format(", ".join(self.allowed_extensions)),
         )
         parser.add_argument(
             "--parent",
@@ -74,23 +158,31 @@ class Upload(Command):
         )
 
         parser.add_argument(
+            "--max-concurrency",
+            type=int,
+            default=4,
+            help="Max parallel part uploads (default 4)",
+        )
+        parser.add_argument(
+            "--part-size-mb",
+            type=int,
+            default=6,
+            help="Multipart part size in MB (min 4; default 6)",
+        )
+
+        parser.add_argument(
             "-wf",
             "--workflow",
             help="To specify multiple workflows, define them coma separated without any additional symbols.\n"
-                 "Add :<version> if you need to specify version\n"
-                 "For example: -wf taxa:1.1.0,amr_vir\n"
-                 "(Latest workflow version will be used if it wasn't specified)"
-                 " Use 'workflows' command to view possible workflows",
+            "Add :<version> if you need to specify version\n"
+            "For example: -wf taxa:1.1.0,amr_vir\n"
+            "(Latest workflow version will be used if it wasn't specified)"
+            " Use 'workflows' command to view possible workflows",
             type=str,
             default="taxa",
         )
 
-        parser.add_argument(
-            "--fastqc-only",
-            help="Run only FastQC workflow",
-            action="store_true",
-            default=False
-        )
+        parser.add_argument("--fastqc-only", help="Run only FastQC workflow", action="store_true", default=False)
 
         parser.add_argument(
             "--forward-primer",
@@ -107,18 +199,21 @@ class Upload(Command):
         parser.add_argument(
             "--amplicon-preset",
             choices=AMPLICON_PRESETS.keys(),
-            help="Only for 'ampliseq' workflow"+'\n'.join([
-                f'''{preset_name}:
+            help="Only for 'ampliseq' workflow"
+            + "\n".join(
+                [
+                    f"""{preset_name}:
                     - forward_primer: {preset_value['forward_primer']}
                     - reverse_primer: {preset_value['reverse_primer']}
-                '''
-                for preset_name, preset_value in AMPLICON_PRESETS.items()
-            ]),
+                """
+                    for preset_name, preset_value in AMPLICON_PRESETS.items()
+                ]
+            ),
             type=str,
             default=None,
         )
 
-        host_removal_options_text = '\n'.join([f'{key:<30}- {label}' for key, label in HOST_REMOVAL_OPTIONS.items()])
+        host_removal_options_text = "\n".join([f"{key:<30}- {label}" for key, label in HOST_REMOVAL_OPTIONS.items()])
         parser.add_argument(
             "--host-name",
             help="Name for host removal.\n*Available only for type `metagenomics`\n" + host_removal_options_text,
@@ -126,12 +221,10 @@ class Upload(Command):
             choices=HOST_REMOVAL_OPTIONS.keys(),
             default=None,
         )
-        
-        parser_builders.directory(
-            parser,
-            help="directory with files for upload e.g. cosmosid upload -d /path/my_dir"
-        )
 
+        parser_builders.directory(parser, help="directory with files for upload e.g. cosmosid upload -d /path/my_dir")
+        LongReadArguments.add_db_args_for_16s18s(parser)
+        LongReadArguments.add_long_read_args(parser)
         return parser
 
     def take_action(self, parsed_args):
@@ -141,7 +234,7 @@ class Upload(Command):
         directory = parsed_args.dir if parsed_args.dir else None
         files = parsed_args.file if parsed_args.file else None
         fastqc_only = parsed_args.fastqc_only
-        
+
         try:
             enabled_workflows = self.app.cosmosid.get_enabled_workflows()
         except CosmosidServerError:
@@ -172,36 +265,30 @@ class Upload(Command):
                     for f in os.listdir(directory)
                     if os.path.isfile(os.path.join(directory, f))
                 ]
-                self.app.logger.info(
-                    "\nReading files from directory {directory}".format(
-                        directory=directory
-                    )
-                )
+                self.app.logger.info("\nReading files from directory {directory}".format(directory=directory))
             else:
-                raise Exception(
-                    "\nSpecified path {directory} is not a directory.".format(
-                        directory=directory
-                    )
-                )
+                raise Exception("\nSpecified path {directory} is not a directory.".format(directory=directory))
         workflow_ids = []
         if fastqc_only:
-            self.app.logger.info("\nOnly FastQC workflow will be run, workflow parameter is ignored.")        
+            self.app.logger.info("\nOnly FastQC workflow will be run, workflow parameter is ignored.")
         else:
             for wf in parsed_args.workflow.split(","):
                 try:
-                    wf_name, wf_version, *_ = (wf+':').split(':')
-                    
+                    wf_name, wf_version, *_ = (wf + ":").split(":")
+
                     version_to_wf = {
-                        workflow['version']: workflow 
-                        for workflow in filter(lambda x: x["name"] == CLI_NAME_TO_WF_NAME.get(wf_name, wf_name), enabled_workflows)
+                        workflow["version"]: workflow
+                        for workflow in filter(
+                            lambda x: x["name"] == CLI_NAME_TO_WF_NAME.get(wf_name, wf_name), enabled_workflows
+                        )
                     }
-                    
+
                     wf_version = wf_version or max(version_to_wf.keys(), key=StrictVersion)
                     wf = version_to_wf.get(wf_version)
                     if not wf:
-                        raise Exception(f'Workflow version {wf_version} is not available for {wf_name}')
-                    
-                    workflow_ids.append(wf['id'])
+                        raise Exception(f"Workflow version {wf_version} is not available for {wf_name}")
+
+                    workflow_ids.append(wf["id"])
                 except IndexError as e:
                     raise Exception(f"'{wf}' workflow is not enabled") from e
 
@@ -217,27 +304,29 @@ class Upload(Command):
             parsed_args.amplicon_preset or (parsed_args.forward_primer and parsed_args.reverse_primer)
         ):
             raise Exception(
-                'Next arguments are required for Amplicon 16S Batch: '
-                '`--amplicon-preset` or  `--forward-primer` with `--reverse-primer`'
+                "Next arguments are required for Amplicon 16S Batch: "
+                "`--amplicon-preset` or  `--forward-primer` with `--reverse-primer`"
             )
-        
+
         if parsed_args.amplicon_preset or parsed_args.forward_primer or parsed_args.reverse_primer:
             if Workflows.AmpliseqBatchGroup not in workflow_ids:
-                raise Exception (
-                    'Next arguments are available only for Amplicon 16S Batch: '
-                    '`--amplicon-preset`, `--forward-primer`, `--reverse-primer`'
+                raise Exception(
+                    "Next arguments are available only for Amplicon 16S Batch: "
+                    "`--amplicon-preset`, `--forward-primer`, `--reverse-primer`"
                 )
-            
+
             if parsed_args.amplicon_preset and (parsed_args.forward_primer or parsed_args.reverse_primer):
-                raise Exception('--amplicon-preset cannot be used with forward or reverse primers')
-            
+                raise Exception("--amplicon-preset cannot be used with forward or reverse primers")
+
             if parsed_args.amplicon_preset:
-                forward_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]['forward_primer']
-                reverse_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]['reverse_primer']
+                forward_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]["forward_primer"]
+                reverse_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]["reverse_primer"]
             if parsed_args.forward_primer:
                 forward_primer = parsed_args.forward_primer
             if parsed_args.reverse_primer:
                 reverse_primer = parsed_args.reverse_primer
+
+        long_read_params = LongReadArguments.build_wf_params(parsed_args, workflow_ids)
 
         pairs = []
         files = sorted(files)
@@ -246,14 +335,12 @@ class Upload(Command):
         if prev_ext not in self.allowed_extensions:
             raise Exception("not supported file extension for file {}".format(files[0]))
 
-        paired_ended = {"files": [files[0]],
-                        "sample_name": prev_fname, "ext": prev_ext}
+        paired_ended = {"files": [files[0]], "sample_name": prev_fname, "ext": prev_ext}
         for fname in files[1:]:
             cur_fname, cur_ext = self.get_base_file_name_and_extension(fname)
 
             if cur_ext not in self.allowed_extensions:
-                raise Exception(
-                    "not supported file extension for file {}".format(fname))
+                raise Exception("not supported file extension for file {}".format(fname))
 
             if cur_fname == prev_fname and prev_ext == cur_ext:
                 paired_ended["files"].append(fname)
@@ -274,19 +361,10 @@ class Upload(Command):
                 {
                     "sample_key": pair["sample_name"],
                     "extension": pair["ext"],
-                    "file_sizes": [
-                        sum(
-                            [
-                                os.path.getsize(f)
-                                for f in pair["files"]
-                                if os.path.exists(f)
-                            ]
-                        )
-                    ],
+                    "file_sizes": [sum([os.path.getsize(f) for f in pair["files"] if os.path.exists(f)])],
                 }
             )
         cost = 0
-
         for price in self.app.cosmosid.pricing(data=pricing_req):
             cost += price["pricing"][str(parsed_args.type)]
         if cost > balance:
@@ -300,12 +378,15 @@ class Upload(Command):
 
         self.app.cosmosid.import_workflow(
             workflow_ids=workflow_ids,
-             pairs=pairs,
-             file_type=parsed_args.type,
-             parent_id=parent_id,
-             host_name=parsed_args.host_name,
-             forward_primer=forward_primer,
-             reverse_primer=reverse_primer,             
+            pairs=pairs,
+            file_type=parsed_args.type,
+            parent_id=parent_id,
+            host_name=parsed_args.host_name,
+            forward_primer=forward_primer,
+            reverse_primer=reverse_primer,
+            concurrency=parsed_args.max_concurrency,
+            part_size_mb=parsed_args.part_size_mb,
+            long_read_params=long_read_params,
         )
         self.app.logger.info("\nFiles have been sent to analysis.")
         self.app.logger.info("Task Done")

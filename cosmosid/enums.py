@@ -31,12 +31,13 @@ HOST_REMOVAL_OPTIONS = {
     "pig:2.0.0": "Pig (GCF_000003025.6_Sscrofa11.1)",
 }
 
-FILE_TYPES = {"metagenomics": 2, "amplicon-16s": 5, "amplicon-its": 6}
+FILE_TYPES = {"metagenomics": 2, "amplicon-16s": 5, "amplicon-its": 6, "long-read-amplicon": 15}
 
 SAMPLE_TYPES = {
     "2": "Shotgun metagenomics (WGS)",
     "5": "Amplicon 16S",
     "6": "Amplicon ITS",
+    "15": "Long Read Amplicon",
 }
 
 WF_DESCRIPTION = {
@@ -177,6 +178,32 @@ determined by the DADA2 algorithm using HOMD database.""",
         "1.0.0",
     ): """The 16S rRNA workflow classifies genus- and species-level taxonomy based on Amplicon Sequence Variants
 determined by the DADA2 algorithm using GreenGenes2 database.""",
+    (
+        "ul_fungal_batch",
+        "1.0.0",
+    ): """The ITS workflow classifies genus- and species-level taxonomy based on Amplicon Sequence Variants determined by the DADA2 algorithm using UNITE Database.""",
+    (
+        "ul_fungal",
+        "1.0.0",
+    ): """The ITS workflow classifies genus- and species-level taxonomy based on Amplicon Sequence Variants determined by the DADA2 algorithm using UNITE Database.""",
+    (
+        "long_read_16s18s_package",
+        "1.0.0",
+    ): "Generate high-resolution taxonomic profiles from long-read 16S or 18S rRNA data using an optimized EMU algorithm, matching reads against multiple 16S/18S comprehensive reference databases.",
+    ("long_read_16s18s_greengenes2_amplicon", "1.0.0"): "Long Read 16S/18S GreenGenes2 Amplicon Profiling.",
+    ("long_read_16s18s_silva_amplicon", "1.0.0"): "Long Read 16S/18S SILVA Amplicon Profiling.",
+    ("long_read_16s18s_gtdb_ssu_220_amplicon", "1.0.0"): "Long Read 16S/18S GTDB Amplicon Profiling.",
+    ("long_read_16s18s_emu_default_amplicon", "1.0.0"): "Long Read 16S/18S EMU Amplicon Profiling.",
+    ("long_read_16s18s_midas_amplicon", "1.0.0"): "Long Read 16S/18S MIDAS Amplicon Profiling.",
+    ("long_read_16s18s_homd_amplicon", "1.0.0"): "Long Read 16S/18S HOMD Amplicon Profiling.",
+    (
+        "long_read_its_amplicon",
+        "1.0.0",
+    ): "Generate high-resolution taxonomic profiles from long-read ITS data using an optimized EMU algorithm, matching reads against UNITE database.",
+    (
+        "long_read_rrna_amplicon",
+        "1.0.0",
+    ): "Generate high-resolution taxonomic profiles from full length 16S-ITS-23S data using an optimized EMU algorithm, matching reads against MIrROR v2.0 database.",
 }
 
 CLI_NAME_TO_WF_NAME = {"ampliseq": "ampliseq_batch_group"}
@@ -191,6 +218,16 @@ HIDDEN_WFS = [
 class Workflows:
     BatchImport = "120b2c3e-4c3b-4fcd-9f56-db507005dcb2"
     AmpliseqBatchGroup = "53aeffd2-f33d-4774-a3a3-1caa2765bd9a"
+
+    LongRead16s18sPackage = "b0e7c6d2-1a2b-4c3d-8e9f-7a6b5c4d3e2f"
+    LongRead16s18sGreengenes2Amplicon = "8e41126f-3cc8-4c5c-a835-e9a33892501e"
+    LongRead16s18sSilvaAmplicon = "2290d106-036d-4a6e-ab23-429e7549b79f"
+    LongRead16s18sGtdbSsu220Amplicon = "1ba7ef81-35a0-4966-982c-af910d0eb284"
+    LongRead16s18sEmuDefaultAmplicon = "0e06e471-4159-4985-be25-30467f5d9a64"
+    LongRead16s18sMidasAmplicon = "8fad71b6-3b96-459e-9e9e-dd5bdc10e7bd"
+    LongRead16s18sHomdAmplicon = "a92ab937-ad24-4405-872b-fa0b6059abfe"
+    LongReadItsAmplicon = "1f830748-a946-4479-bdd5-52bbb3dfd5fe"
+    FullLengthRrnaAmplicon = "0f2cbc45-7d98-4b5a-9960-5f8a2476e0c3"
 
 
 class ComparativeExportType(Enum):

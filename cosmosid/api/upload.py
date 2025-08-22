@@ -1,324 +1,765 @@
 """Interactions with CosmosID's and S3's APIs regarding file uploads to S3."""
 
+import base64
+import hashlib
 import logging
 import os
 import sys
-import types
+import time
+import threading
+import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import boto3
 import requests
-from boto3.exceptions import S3UploadFailedError
-from boto3.s3.transfer import TransferConfig
-from botocore.exceptions import ClientError
-from s3transfer.manager import TransferManager
-from s3transfer.subscribers import BaseSubscriber
-from s3transfer.utils import OSUtils, ReadFileChunk
+from requests.adapters import HTTPAdapter
+
+try:
+    from urllib3.util import Retry  # type: ignore
+except Exception:  # pragma: no cover
+    Retry = None  # fallback – session retries disabled
 
 from cosmosid.api import urls
-from cosmosid.api.files import Files
-from cosmosid.helpers.exceptions import (
-    AuthenticationFailed,
-    NotEnoughCredits,
-    NotFoundException,
-    UploadException,
-)
-from cosmosid.utils import LOCK, do_not_retry_event, requests_retry_session, retry
+from cosmosid.helpers.exceptions import UploadException
+from cosmosid.utils import LOCK, requests_retry_session
 
 LOGGER = logging.getLogger(__name__)
 KB = 1024
 MB = 1024 * KB
-GB = 1024 * MB
-MULTIPART_THRESHOLD = 1 * GB
-MAX_CHUNK_SIZE = 5 * GB
-if sys.platform.startswith("win"):
-    MAX_CHUNK_SIZE = 1.9 * GB
-MIN_CHUNK_SIZE = 1 * GB
-MAX_CONCURRENCY = 5
+DEFAULT_PART_SIZE_MB = 6  # baseline default; overridden only via function parameters
+PART_SIZE = DEFAULT_PART_SIZE_MB * MB
+SMALL_FILE_THRESHOLD = PART_SIZE * 1
+MAX_PART_RETRIES = 5
+PART_BACKOFF_BASE = 1.5
+MAX_CONCURRENCY_DEFAULT = 5
+RESET_FALLBACK_THRESHOLD = 5  # after this many connection resets fallback to sequential
+
+TRUNCATION_SUFFIX = "...<truncated>"
 
 
-class OSUtilsWithCallbacks(OSUtils):
-    """Abstruction for manipulations on file[-like] objects."""
+class ProgressReporter:
+    """Stateful progress reporter (callable) tracking speed and ETA.
 
-    def open_file_chunk_reader(self, filename, start_byte, size, callbacks):
-        return ReadFileChunk.from_filename(
-            filename, start_byte, size, callbacks, enable_callbacks=True
-        )
-
-    def open_file_chunk_reader_from_fileobj(
-        self, fileobj, chunk_size, full_file_size, callbacks, close_callbacks=None
-    ):
-        return ReadFileChunk(
-            fileobj,
-            chunk_size,
-            full_file_size,
-            callbacks=callbacks,
-            enable_callbacks=True,
-            close_callbacks=close_callbacks,
-        )
-
-
-class ProgressSubscriber(BaseSubscriber):
-    """Progress subscriber for any number of upload threads."""
-
-    def __init__(self, filename):
-        self._filename = filename
-        self._size = float(os.path.getsize(filename))
-        self._seen_so_far = 0
-        self._lock = LOCK
-
-    def on_progress(self, future, bytes_transferred, **kwargs):
-        """Callback to be invoked when progress is made on transfer."""
-        with self._lock:
-            self._seen_so_far += bytes_transferred
-            percentage = (self._seen_so_far / self._size) * 100
-            sys.stdout.write(
-                "\r%s  %sMB / %sMB  (%.2f%%)"
-                % (
-                    self._filename,
-                    int(self._seen_so_far / MB),
-                    int(self._size / MB),
-                    percentage,
-                )
-            )
-            sys.stdout.flush()
-
-
-def create_client(base_url, api_key):
-    """Create boto3 s3 client.
-
-    Addss methods to the client for CosmosID's and S3's upload/download
-    operations.
+    Replaces the _progress_reporter closure while staying API compatible
+    (instances are callable with delta bytes uploaded).
     """
-    client = boto3.client("s3")
-    client.base_url = base_url
-    client.header = {"X-Api-Key": api_key}
-    client.burl = client.base_url + urls.UPLOAD_BFILE_URL
-    client.surl = client.base_url + urls.UPLOAD_SFILE_URL
-    client.create_multipart_upload = types.MethodType(create_multipart_upload, client)
-    client.abort_multipart_upload = types.MethodType(abort_multipart_upload, client)
-    client.upload_part = types.MethodType(upload_part, client)
-    client.put_object = types.MethodType(put_object, client)
-    client.complete_multipart_upload = types.MethodType(
-        complete_multipart_upload, client
-    )
-    return client
 
+    __slots__ = ("file_name", "file_size", "_uploaded", "_start")
 
-@retry(logger=LOGGER, tries=2)
-def create_multipart_upload(self, *args, **kwargs):
-    """Requests to CosmosID's API to initiate the multipart upload."""
-    data = dict(kwargs)
-    mp_up = requests.put(self.burl, json=data, headers=self.header, timeout=10)
-    resp = dict()
-    if mp_up.status_code == requests.codes.ok:
-        resp = mp_up.json()
-    return resp
+    def __init__(self, file_name: str, file_size: int):
+        self.file_name = file_name
+        self.file_size = file_size
+        self._uploaded = 0
+        self._start = time.time()
 
+    @staticmethod
+    def _human_rate(bps: float) -> str:
+        if bps <= 0:
+            return "0 B/s"
+        units = ["B/s", "KB/s", "MB/s", "GB/s"]
+        idx = 0
+        while bps >= 1024 and idx < len(units) - 1:
+            bps /= 1024.0
+            idx += 1
+        if idx == 0:
+            return f"{int(bps)} {units[idx]}"
+        return f"{bps:.2f} {units[idx]}"
 
-@retry(logger=LOGGER, tries=3)
-def abort_multipart_upload(self, *args, **kwargs):
-    """Requests to CosmosID's API to do the cleanup.
-
-    Amazon S3 retains all the parts until you either complete or abort the
-    upload. Throughout its lifetime, you are billed for all storage,
-    bandwidth, and requests for this multipart upload and its associated parts.
-    """
-    data = dict(kwargs)
-    ab_mp = requests.delete(self.burl, json=data, headers=self.header, timeout=5)
-    if not ab_mp:
-        raise Exception
-    return ab_mp.json()
-
-
-@retry(logger=LOGGER, tries=3)
-def upload_part(self, *args, **kwargs):
-    """Uploads data part to S3.
-
-    Requests pre-signed URL from CosmosID's API. Uses it to upload data
-    to S3.
-    """
-    data = dict(kwargs)
-    resp = None
-    upload_body = data.pop("Body")
-    url_ = requests.get(self.burl, json=data, headers=self.header, timeout=5)
-    if url_.status_code == requests.codes.ok:
-        resp = requests.put(url_.json(), upload_body)
-        if resp.headers:
-            return dict(resp.headers)
-    raise Exception("Upload issues.")
-
-
-@retry(logger=LOGGER, tries=3)
-def put_object(self, *args, **kwargs):
-    """Upload small file.
-
-    Requests pre-signed URL from CosmosID's API. Uses it to upload file
-    to S3."""
-    data = dict(kwargs)
-    upload_body = data.pop("Body")
-    resp = None
-    url_ = requests.get(self.surl, json=data, headers=self.header)
-    if url_.status_code == requests.codes.ok:
-        resp = requests.put(url_.json(), upload_body)
-        if resp.headers:
-            return dict(resp.headers)
-    raise Exception("Upload issues.")
-
-
-@retry(logger=LOGGER, tries=3)
-def complete_multipart_upload(self, *args, **kwargs):
-    """Complete multipart upload.
-
-    Makes requests to CosmosID's API in order to complete a multipart
-    upload by assembling previously uploaded parts. It's been mentioned
-    somwhere in the docs that consequent complete_multipart_uploads are OK
-    for a short period after the upload is successfully completed.
-    """
-    data = dict(kwargs)
-    cmp_up = requests.post(self.burl, json=data, headers=self.header, timeout=60)
-    if cmp_up:
-        return cmp_up.json()
-    raise Exception("complete_multipart_upload did not succeed.")
-
-
-def upload_file(**kwargs):
-    """Upload manager."""
-    filename = kwargs.get("file")
-    parent_id = kwargs.get("parent_id", None)
-    base_url = kwargs.get("base_url")
-    api_key = kwargs.get("api_key")
-    multipart_chunksize = file_size = os.stat(filename)[6]  # get size of file in bytes
-    client = create_client(base_url=base_url, api_key=api_key)
-
-    if file_size > MULTIPART_THRESHOLD:  # bigger that 1GB
-        multipart_chunksize = min(int(file_size / 10), int(MAX_CHUNK_SIZE))
-        multipart_chunksize = max(multipart_chunksize, int(MIN_CHUNK_SIZE))
-        LOGGER.info("File size: %s MB", file_size / MB)
-        LOGGER.info("Chunk size: %s MB", int(multipart_chunksize / MB))
-    config = TransferConfig(
-        multipart_threshold=MULTIPART_THRESHOLD,
-        max_concurrency=MAX_CONCURRENCY,
-        multipart_chunksize=multipart_chunksize,
-    )
-    osutil = OSUtilsWithCallbacks()
-    # Check if given parent folder exists
-    if parent_id:
-        fl_obj = Files(base_url=base_url, api_key=api_key)
-        res = fl_obj.get_list(parent_id=parent_id, limit=1)
-        if not res["status"]:
-            raise NotFoundException("Parent folder for upload doesn't exist.")
-
-    transfer_manager = TransferManager(client, config=config, osutil=osutil)
-
-    subscribers = [
-        ProgressSubscriber(filename),
-    ]
-
-    _, file_name = os.path.split(filename)
-    try:
-        init_url = client.base_url + urls.UPLOAD_INIT_URL
-        response = requests_retry_session().put(
-            init_url, json=dict(file_name=file_name), headers=client.header
-        )
-        if response.status_code == 402:
-            raise NotEnoughCredits("Insufficient credits for upload.")
-        if response.status_code == 403:
-            raise AuthenticationFailed("Authentication Failed. Wrong API Key.")
-        if response.status_code == requests.codes.ok:
-            sources = response.json()
-            future = transfer_manager.upload(
-                filename,
-                sources["upload_source"],
-                sources["upload_key"],
-                extra_args=None,
-                subscribers=subscribers,
-            )
+    def __call__(self, delta: int):  # pragma: no cover - simple
+        self._uploaded += delta
+        now = time.time()
+        elapsed = max(now - self._start, 1e-6)
+        speed = self._uploaded / elapsed
+        remaining = max(self.file_size - self._uploaded, 0)
+        eta = remaining / speed if speed > 0 else 0
+        if eta >= 3600:
+            eta_str = f"{int(eta // 3600)}h{int((eta % 3600) // 60)}m"
+        elif eta >= 60:
+            eta_str = f"{int(eta // 60)}m{int(eta % 60)}s"
         else:
-            LOGGER.error(
-                "File upload inititalisation Failed. " "Response code: %s",
-                response.status_code,
-            )
-            raise UploadException(
-                "File upload inititalisation Failed. "
-                "Response code: %s" % response.status_code
-            )
+            eta_str = f"{int(eta)}s"
+        status = f"Uploading {self.file_name} | {self._human_rate(speed)} | ETA {eta_str}"
         try:
-            future.result()
-        except KeyboardInterrupt:
-            do_not_retry_event.set()
-            return
-        return sources["upload_key"]
+            from cosmosid.utils import progress as progress_fn  # local import
 
-        # If a client error was raised, add the backwards compatibility layer
-        # that raises a S3UploadFailedError. These specific errors were only
-        # ever thrown for upload_parts but now can be thrown for any related
-        # client error.
-
-    except ClientError as error:
-        raise S3UploadFailedError(
-            f'Failed to upload {filename} to {"/".join([sources["upload_source"], sources["upload_key"]])}: {error}'
-        ) from error
+            progress_fn(self._uploaded, self.file_size, status=status)
+        except Exception:
+            pass
 
 
-def upload_and_save(files, parent_id, file_type, base_url, api_key):
+class _MultipartUploader:
+    """Stateful multipart uploader with adaptive fallback to sequential mode.
+
+    api_session handles CosmosID API calls.
+    Each worker thread obtains its own session for S3 PUTs via _get_upload_session().
     """
-    Upload list of files and save them
-    :param files: list of dicts where each file is:
-        {
-            'files': list of file paths,
-            'sample_name': name of sample,
-            'ext': files extension
-        }
-    :param parent_id: id of parent folder
-    :param file_type: type of analysis (shotgun, amplicon, ...)
-    :param base_url: base url of api
-    :param api_key: api key of current user
-    """
-    client = create_client(base_url=base_url, api_key=api_key)
-    try:
-        items = []
-        for file_name in files["files"]:
-            items.append(
-                upload_file(
-                    file=file_name,
-                    file_type=file_type,
-                    parent_id=parent_id,
-                    api_key=api_key,
-                    base_url=base_url,
+
+    def __init__(
+        self,
+        session,
+        client,
+        bucket,
+        upload_key,
+        filename,
+        file_size,
+        concurrency,
+        report,
+        part_size,
+    ):
+        self.api_session = session
+        self.client = client
+        self.bucket = bucket
+        self.upload_key = upload_key
+        self.filename = filename
+        self.file_size = file_size
+        self.concurrency = concurrency
+        self.report = report
+        self.upload_id = None
+        self.parts = []
+        self.resets = 0
+        self.fallback_triggered = False
+        self.lock = LOCK
+        self.part_size = part_size
+
+    def init(self):
+        payload = {"Bucket": self.bucket, "Key": self.upload_key}
+        resp = self.api_session.put(
+            self.client.burl,
+            json=payload,
+            headers=self.client.header,
+            timeout=30,
+        )
+        try:
+            body = resp.text if isinstance(getattr(resp, "text", None), str) else None
+            if body and len(body) > 2000:
+                body = body[:2000] + TRUNCATION_SUFFIX
+            LOGGER.debug(
+                json.dumps(
+                    {
+                        "event": "multipart_init",
+                        "method": "PUT",
+                        "url": self.client.burl,
+                        "payload": payload,
+                        "status": resp.status_code,
+                        "body": body,
+                    },
+                    default=str,
                 )
             )
-        data = dict(
-            source=dict(type="web-upload", items=items),
-            sample_name=files["sample_name"],
-            folder_id=parent_id,
-            file_type=file_type,
+        except Exception:
+            pass
+        if resp.status_code != requests.codes.ok:
+            raise UploadException("Failed to create multipart upload.")
+        data = resp.json() or {}
+        self.upload_id = data.get("UploadId") or data.get("UploadID")
+        if not self.upload_id:
+            raise UploadException("UploadId missing from multipart init response.")
+
+    def presign_part(self, part_number, md5_b64):
+        payload = {
+            "Bucket": self.bucket,
+            "Key": self.upload_key,
+            "PartNumber": part_number,
+            "UploadId": self.upload_id,
+            "ContentMD5": md5_b64,
+        }
+        resp = self.api_session.get(
+            self.client.burl,
+            json=payload,
+            headers=self.client.header,
+            timeout=30,
         )
-        create_file_url = client.base_url + urls.SAMPLES_URL
-        create_response = requests_retry_session().post(
-            create_file_url, json=data, headers=client.header
+        try:
+            body = resp.text if isinstance(getattr(resp, "text", None), str) else None
+            if body and len(body) > 2000:
+                body = body[:2000] + TRUNCATION_SUFFIX
+            LOGGER.debug(
+                json.dumps(
+                    {
+                        "event": "presign_part",
+                        "method": "GET",
+                        "url": self.client.burl,
+                        "part_number": part_number,
+                        "payload": payload,
+                        "status": resp.status_code,
+                        "body": body,
+                    },
+                    default=str,
+                )
+            )
+        except Exception:  # pragma: no cover
+            pass
+        if resp.status_code != requests.codes.ok:
+            raise UploadException(f"Presign failed part {part_number} HTTP {resp.status_code}")
+        return resp.json()
+
+    def put_part(self, url, part_number, data_bytes, md5_b64):
+        size = len(data_bytes)
+        up_session = _get_upload_session()
+        start = time.time()
+        headers = {
+            "Content-MD5": md5_b64,
+            "Content-Length": str(size),
+        }  # intentionally no Content-Type
+        LOGGER.debug(
+            json.dumps(
+                {
+                    "event": "part_put_start",
+                    "part_number": part_number,
+                    "url": url,
+                    "size": size,
+                    "streaming": False,
+                },
+                default=str,
+            )
         )
-        if create_response.status_code == 200:
-            return create_response.json()
+        try:
+            resp = up_session.put(url, data=data_bytes, headers=headers, timeout=(30, 600))
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.debug(
+                json.dumps(
+                    {
+                        "event": "part_put_error",
+                        "part_number": part_number,
+                        "error": str(exc),
+                        "elapsed": round(time.time() - start, 3),
+                    },
+                    default=str,
+                )
+            )
+            raise
+        elapsed = time.time() - start
+        if resp.status_code in (200, 201):
+            self.report(size)
+            etag = resp.headers.get("ETag")
+            if not etag:
+                LOGGER.debug(
+                    json.dumps(
+                        {
+                            "event": "part_put_missing_etag",
+                            "part_number": part_number,
+                            "status": resp.status_code,
+                            "elapsed": round(elapsed, 3),
+                        },
+                        default=str,
+                    )
+                )
+                raise UploadException(f"Missing ETag for part {part_number}")
+            with self.lock:
+                self.parts.append({"ETag": etag.strip('"'), "PartNumber": part_number})
+            LOGGER.debug(
+                json.dumps(
+                    {
+                        "event": "part_put_ok",
+                        "part_number": part_number,
+                        "status": resp.status_code,
+                        "etag": etag,
+                        "elapsed": round(elapsed, 3),
+                    },
+                    default=str,
+                )
+            )
+            return
+        body_sample = resp.text[:500] if hasattr(resp, "text") else None
+        try:
+            LOGGER.debug(
+                json.dumps(
+                    {
+                        "event": "part_put_failed",
+                        "part_number": part_number,
+                        "status": resp.status_code,
+                        "elapsed": round(elapsed, 3),
+                        "headers": dict(resp.headers),
+                        "body": body_sample,
+                    },
+                    default=str,
+                )
+            )
+        except Exception:
+            pass
+        raise UploadException(f"Part {part_number} failed HTTP {resp.status_code}")
+
+    def upload_part(self, part_number, data_bytes):
+        md5_b64 = base64.b64encode(hashlib.md5(data_bytes).digest()).decode("ascii")
+        attempt = 0
+        last_exc = None
+        reset_fallback_threshold = int(
+            os.getenv(
+                "COSMOSID_UPLOAD_RESET_FALLBACK_THRESHOLD",
+                str(RESET_FALLBACK_THRESHOLD),
+            )
+        )
+        while attempt < MAX_PART_RETRIES:
+            try:
+                url = self.presign_part(part_number, md5_b64)
+                self.put_part(url, part_number, data_bytes, md5_b64)
+                return
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                attempt += 1
+                if "Connection reset" in str(exc):
+                    with self.lock:
+                        self.resets += 1
+                        if (
+                            self.resets >= reset_fallback_threshold
+                            and self.concurrency > 1
+                            and not self.fallback_triggered
+                        ):
+                            self.fallback_triggered = True
+                            LOGGER.warning(
+                                "Connection resets reached %d (threshold %d). Switching to sequential for remaining parts.",
+                                self.resets,
+                                reset_fallback_threshold,
+                            )
+                if attempt >= MAX_PART_RETRIES:
+                    break
+                backoff = PART_BACKOFF_BASE**attempt
+                LOGGER.warning(
+                    "Retry part %s attempt %s/%s after error: %s (sleep %.2fs)",
+                    part_number,
+                    attempt,
+                    MAX_PART_RETRIES,
+                    exc,
+                    backoff,
+                )
+                time.sleep(backoff)
+        raise UploadException(f"Part {part_number} failed after retries: {last_exc}")
+
+    def upload_all_parts(self):
+        part_number = 1
+        remaining_offset = None
+        with (
+            open(self.filename, "rb") as fh,
+            ThreadPoolExecutor(max_workers=self.concurrency) as pool,
+        ):
+            futures = []
+            while True:
+                chunk = fh.read(self.part_size)
+                if not chunk:
+                    break
+                futures.append(pool.submit(self.upload_part, part_number, chunk))
+                part_number += 1
+                if self.fallback_triggered:
+                    remaining_offset = fh.tell()
+                    break
+            for fut in as_completed(futures):
+                fut.result()
+        if self.fallback_triggered and remaining_offset is not None:
+            with open(self.filename, "rb") as fh_seq:
+                fh_seq.seek(remaining_offset)
+                while True:
+                    chunk = fh_seq.read(self.part_size)
+                    if not chunk:
+                        break
+                    self.upload_part(part_number, chunk)
+                    part_number += 1
+
+    def complete(self):
+        payload = {
+            "Bucket": self.bucket,
+            "Key": self.upload_key,
+            "UploadId": self.upload_id,
+            "MultipartUpload": {"Parts": sorted(self.parts, key=lambda p: p["PartNumber"])},
+        }
+        finish = self.api_session.post(self.client.burl, json=payload, headers=self.client.header, timeout=120)
+        try:
+            body = finish.text if isinstance(getattr(finish, "text", None), str) else None
+            if body and len(body) > 2000:
+                body = body[:2000] + TRUNCATION_SUFFIX
+            LOGGER.debug(
+                json.dumps(
+                    {
+                        "event": "multipart_complete",
+                        "method": "POST",
+                        "url": self.client.burl,
+                        "payload": payload,
+                        "status": finish.status_code,
+                        "body": body,
+                    },
+                    default=str,
+                )
+            )
+        except Exception:
+            pass
+        if finish.status_code != requests.codes.ok:
+            raise UploadException("Failed to complete multipart upload.")
+
+    def abort(self):
+        if not self.upload_id:
+            return
+        try:
+            payload = {
+                "Bucket": self.bucket,
+                "Key": self.upload_key,
+                "UploadId": self.upload_id,
+            }
+            resp = self.api_session.delete(
+                self.client.burl,
+                json=payload,
+                headers=self.client.header,
+                timeout=30,
+            )
+            try:
+                body = getattr(resp, "text", None)
+                if isinstance(body, str) and len(body) > 2000:
+                    body = body[:2000] + TRUNCATION_SUFFIX
+                LOGGER.debug(
+                    json.dumps(
+                        {
+                            "event": "multipart_abort",
+                            "method": "DELETE",
+                            "url": self.client.burl,
+                            "payload": payload,
+                            "status": getattr(resp, "status_code", None),
+                            "body": body,
+                        },
+                        default=str,
+                    )
+                )
+            except Exception:  # pragma: no cover
+                pass
+        except Exception:  # pragma: no cover
+            pass
+
+    def run(self):
+        try:
+            self.init()
+            self.upload_all_parts()
+            self.complete()
+            sys.stdout.write("\n")
+            return self.upload_key
+        except Exception:
+            self.abort()
+            raise
+
+
+class Uploader:
+    """High-level uploader orchestrating single or multipart uploads.
+
+    Usage:
+      uploader = Uploader(file_path=..., file_type=..., parent_id=..., api_key=..., base_url=...)
+      upload_key = uploader.run()
+    """
+
+    def __init__(
+        self,
+        *,
+        file_path,
+        file_type,
+        parent_id,
+        api_key,
+        base_url,
+        concurrency=None,
+        part_size_mb=None,
+        logger: logging.Logger = LOGGER,
+    ):
+        # Inputs / config
+        self.file_path = file_path
+        self.file_type = file_type
+        self.parent_id = parent_id
+        self.api_key = api_key
+        self.base_url = base_url
+        self.concurrency = concurrency or int(os.getenv("COSMOSID_UPLOAD_CONCURRENCY", str(MAX_CONCURRENCY_DEFAULT)))
+        self._logger = logger
+        # Derived / runtime state
+        self.client = self.create_client(base_url, api_key)
+        self.session = self._build_session(self.concurrency)
+        self.bucket = None
+        self.upload_key = None
+        self.size = None
+        self.report = None
+        # Part size (at least 4MB to satisfy S3 multi-part minimum)
+        if part_size_mb is not None and part_size_mb >= 4:
+            self.part_size = part_size_mb * MB
         else:
-            raise UploadException("Failed to upload files: %s" % data["sample_name"])
-    except NotEnoughCredits:
-        LOGGER.error("Not Enough Credits")
-        return False
-    except AuthenticationFailed:
-        LOGGER.error("Authentication Failed")
-        return False
-    except UploadException:
-        LOGGER.error("File Upload Failed.")
-        return False
+            self.part_size = PART_SIZE
+
+    def _init_file(self):
+        size = os.path.getsize(self.file_path)
+        payload = {
+            "file_name": os.path.basename(self.file_path),
+            "file_type": self.file_type,
+            "file_size": size,
+            "folder_id": self.parent_id,
+        }
+        try:
+            resp = self.session.put(
+                self.client.init_url,
+                json=payload,
+                headers=self.client.header,
+                timeout=60,
+            )
+        except requests.RequestException as exc:  # pragma: no cover
+            self._logger.debug(
+                json.dumps(
+                    {
+                        "event": "upload_init_error",
+                        "method": "PUT",
+                        "url": self.client.init_url,
+                        "payload": payload,
+                        "error": str(exc),
+                    },
+                    default=str,
+                )
+            )
+            raise UploadException(f"Init upload network error: {exc}") from exc
+        body = getattr(resp, "text", None)
+        if isinstance(body, str) and len(body) > 2000:
+            body = body[:2000] + TRUNCATION_SUFFIX
+        self._logger.debug(
+            json.dumps(
+                {
+                    "event": "upload_init",
+                    "method": "PUT",
+                    "url": self.client.init_url,
+                    "payload": payload,
+                    "status": resp.status_code,
+                    "body": body,
+                },
+                default=str,
+            )
+        )
+        if resp.status_code == 403:
+            raise UploadException("Authentication failed (403)")
+        if resp.status_code == 404:
+            raise UploadException("Parent folder not found (404)")
+        if resp.status_code == 405:
+            raise UploadException(
+                "Init upload failed (405 Method Not Allowed) - ensure endpoint /upload_init supports PUT and CLI base_url is correct"
+            )
+        if resp.status_code not in (200, 201):
+            raise UploadException(f"Init upload failed HTTP {resp.status_code}")
+        try:
+            js = resp.json() or {}
+        except ValueError:
+            raise UploadException("Init upload returned non-JSON response")
+        bucket = js.get("upload_source") or js.get("bucket") or js.get("Bucket")
+        upload_key = js.get("upload_key") or js.get("key") or js.get("Key")
+        if not bucket or not upload_key:
+            raise UploadException(f"Init response missing upload_source/upload_key fields: {js}")
+        self.bucket, self.upload_key, self.size = bucket, upload_key, size
+
+    def _select_strategy(self):
+        if self.size is None:
+            raise UploadException("File size unknown before selecting strategy")
+        if self.size <= SMALL_FILE_THRESHOLD:
+            return SmallFileUploadStrategy(self)
+        return MultipartUploadStrategy(self)
+
+    @staticmethod
+    def _build_session(concurrency: int) -> requests.Session:
+        """Create a requests.Session with retry adapter sized to concurrency.
+
+        Retries only idempotent metadata operations (GET/POST) and allows part PUT
+        retries to be handled explicitly in code.
+        """
+        session = requests.Session()
+        if Retry is not None:
+            try:
+                retry_cfg = Retry(
+                    total=3,
+                    connect=3,
+                    read=2,
+                    backoff_factor=0.3,  # type: ignore[arg-type]
+                    status_forcelist=[500, 502, 503, 504],
+                    allowed_methods=["GET", "PUT", "POST"],
+                )
+                adapter = HTTPAdapter(
+                    max_retries=retry_cfg,
+                    pool_connections=concurrency * 2,
+                    pool_maxsize=concurrency * 2,
+                )
+                session.mount("http://", adapter)
+                session.mount("https://", adapter)
+            except Exception:  # pragma: no cover
+                pass
+        return session
+
+    @staticmethod
+    def create_client(base_url, api_key):
+        """Lightweight struct with upload endpoint URLs and headers."""
+
+        class _UploadClient:
+            def __init__(self, base_url, api_key):
+                if base_url and not base_url.startswith("http"):
+                    base_url = f"https://{base_url}"
+                self.base_url = base_url.rstrip("/") if base_url else "https://app.cosmosid.com"
+                self.header = {"X-API-Key": api_key} if api_key else {}
+                self.init_url = self.base_url + urls.UPLOAD_INIT_URL
+                self.burl = self.base_url + urls.UPLOAD_BFILE_URL
+                self.surl = self.base_url + urls.UPLOAD_SFILE_URL
+
+        return _UploadClient(base_url, api_key)
+
+    def run(self):
+        self._init_file()
+        assert self.size is not None
+        self.report = ProgressReporter(os.path.basename(self.file_path), self.size)
+        strategy = self._select_strategy()
+        return strategy.run()
 
 
-def pricing(data, base_url, api_key):
-    client = create_client(base_url=base_url, api_key=api_key)
-    pricing_url = client.base_url + urls.SAMPLES_PRICING_URL
-    pricing_response = requests_retry_session().post(
-        url=pricing_url, json={"data": data}, headers=client.header
+class _BaseUploadStrategy:
+    """Common base for upload strategies."""
+
+    def __init__(self, uploader: "Uploader"):
+        self.uploader = uploader
+
+    def run(self) -> str:  # pragma: no cover - interface
+        raise NotImplementedError
+
+
+class SmallFileUploadStrategy(_BaseUploadStrategy):
+    """Handles single part file uploads."""
+
+    def run(self) -> str:
+        u = self.uploader
+        if u.bucket is None or u.upload_key is None or u.size is None:
+            raise UploadException("Uploader not initialized before small upload")
+        if u.report is None:
+            u.report = ProgressReporter(os.path.basename(u.file_path), u.size)
+
+        md5 = hashlib.md5()
+        with open(u.file_path, "rb") as fh:
+            data = fh.read()
+            md5.update(data)
+        md5_b64 = base64.b64encode(md5.digest()).decode("ascii")
+
+        presign_payload = {
+            "Bucket": u.bucket,
+            "Key": u.upload_key,
+            "ContentMD5": md5_b64,
+        }
+        presign_resp = u.session.get(u.client.surl, json=presign_payload, headers=u.client.header, timeout=60)
+        body = presign_resp.text
+        if isinstance(body, str) and len(body) > 2000:
+            body = body[:2000] + TRUNCATION_SUFFIX
+        u._logger.debug(
+            json.dumps(
+                {
+                    "event": "presign_single_part",
+                    "method": "GET",
+                    "url": u.client.surl,
+                    "payload": presign_payload,
+                    "status": presign_resp.status_code,
+                    "body": body,
+                },
+                default=str,
+            )
+        )
+        if presign_resp.status_code != 200:
+            raise UploadException(f"Presign single-part failed HTTP {presign_resp.status_code}")
+        url = presign_resp.json()
+
+        size = len(data)
+        put_session = _get_upload_session()
+        headers = {"Content-MD5": md5_b64, "Content-Length": str(size)}
+        u._logger.debug(json.dumps({"event": "single_put_start", "url": url, "size": size}, default=str))
+        resp = put_session.put(url, data=data, headers=headers, timeout=(30, 600))
+        if resp.status_code not in (200, 201):
+            body_fail = resp.text[:500] if hasattr(resp, "text") else None
+            u._logger.debug(
+                json.dumps(
+                    {
+                        "event": "single_put_failed",
+                        "url": url,
+                        "status": resp.status_code,
+                        "body": body_fail,
+                    },
+                    default=str,
+                )
+            )
+            raise UploadException(f"Single-part upload failed HTTP {resp.status_code}")
+        u.report(size)
+        sys.stdout.write("\n")
+        return u.upload_key  # type: ignore[return-value]
+
+
+class MultipartUploadStrategy(_BaseUploadStrategy):
+    """Handles multipart uploads."""
+
+    def run(self) -> str:
+        u = self.uploader
+        mp = _MultipartUploader(
+            session=u.session,
+            client=u.client,
+            bucket=u.bucket,
+            upload_key=u.upload_key,
+            filename=u.file_path,
+            file_size=u.size,
+            concurrency=u.concurrency,
+            report=u.report,
+            part_size=u.part_size,
+        )
+        key = mp.run()
+        if not isinstance(key, str):  # pragma: no cover - safety
+            raise UploadException("Multipart upload did not return key")
+        return key
+
+
+# Thread-local session for S3 PUT operations
+_S3_THREAD_LOCAL = threading.local()
+
+
+def _get_upload_session() -> requests.Session:  # pragma: no cover - simple helper
+    session = getattr(_S3_THREAD_LOCAL, "session", None)
+    if session is None:
+        session = requests.Session()
+        try:
+            adapter = HTTPAdapter(pool_connections=4, pool_maxsize=4)
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
+        except Exception:
+            pass
+        _S3_THREAD_LOCAL.session = session
+    return session
+
+
+def upload_file(*, file, file_type, parent_id=None, api_key, base_url, concurrency=None, part_size_mb=None):
+    uploader = Uploader(
+        file_path=file,
+        file_type=file_type,
+        parent_id=parent_id,
+        api_key=api_key,
+        base_url=base_url,
+        concurrency=concurrency,
+        part_size_mb=part_size_mb,
     )
-    if pricing_response.status_code == 200:
-        return pricing_response.json()
-    else:
-        pricing_response.raise_for_status()
+    return uploader.run()
+
+
+def upload_and_save(*, files, parent_id=None, file_type, base_url, api_key, concurrency=None, part_size_mb=None):
+    if not files:
+        raise UploadException("No files provided")
+    first = upload_file(
+        file=files[0],
+        file_type=file_type,
+        parent_id=parent_id,
+        api_key=api_key,
+        base_url=base_url,
+        concurrency=concurrency,
+        part_size_mb=part_size_mb,
+    )
+    return {"id": first} if first else None
+
+
+def pricing(*, data, base_url, api_key):
+    """Return pricing info for provided samples payload.
+
+    Parameters:
+      data: list of sample pricing request dicts
+      base_url: API base URL
+      api_key: API key for auth
+    """
+    if base_url and not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+    base_url = base_url.rstrip("/") if base_url else "https://app.cosmosid.com"
+    hdr = {"X-API-Key": api_key} if api_key else {}
+    url = base_url + urls.SAMPLES_PRICING_URL
+    resp = requests_retry_session().post(url=url, json={"data": data}, headers=hdr)
+    if resp.status_code != 200:
+        raise UploadException(f"Pricing request failed HTTP {resp.status_code}")
+    js = resp.json()
+    # Expecting list; if API returns object wrap for backward compatibility
+    if isinstance(js, dict):
+        return [js]
+    return js

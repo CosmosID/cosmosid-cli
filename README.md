@@ -273,31 +273,46 @@ CosmosID supports the following types of analysis:
 
 ```shell
 # cosmosid upload --help
-usage: cosmosid upload [-h] [--file FILE] [--parent PARENT] --type {metagenomics,amplicon-16s,amplicon-its}
-                       [-wf WORKFLOW] [--fastqc-only] 
-                       [--forward-primer FORWARD_PRIMER] [--reverse-primer REVERSE_PRIMER]
+usage: cosmosid upload [-h] [--file FILE] [--parent PARENT] --type
+                       {metagenomics,amplicon-16s,amplicon-its,long-read-amplicon}
+                       [--max-concurrency MAX_CONCURRENCY]
+                       [--part-size-mb PART_SIZE_MB] [-wf WORKFLOW]
+                       [--fastqc-only] [--forward-primer FORWARD_PRIMER]
+                       [--reverse-primer REVERSE_PRIMER]
                        [--amplicon-preset {v1_v3,v3_v4,v4}]
                        [--host-name {human:2.0.0,human:1.0.0,dog:2.0.0,domestic_cat:2.0.0,cow:1.0.0,chicken:2.0.0,mouse:2.0.0,monkey:2.0.0,cattle:2.0.0,pig:2.0.0}]
-                       [--dir DIR]
+                       [--dir DIR] [--lr-greengenes2] [--lr-silva] [--lr-gtdb]
+                       [--lr-emu] [--lr-midas] [--lr-homd]
+                       [--min-length MIN_LENGTH] [--max-length MAX_LENGTH]
+                       [--min-quality MIN_QUALITY]
+                       [--mm2-seq-type {map-ont,map-hifi}]
+                       [--max-iterations MAX_ITERATIONS]
+                       [--probability-cutoff PROBABILITY_CUTOFF]
 
 Upload files to cosmosid.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --file FILE, -f FILE
-                        file(s) for upload. Supported file types: fasta, fna, fasta.gz, fastq, fq, fastq.gz, bam, sra e.g. cosmosid upload
-                        -f /path/file1.fasta -f /path/file2.fn
+  --file FILE, -f FILE  file(s) for upload. Supported file types: fasta, fna,
+                        fasta.gz, fastq, fq, fastq.gz, bam, sra e.g. cosmosid
+                        upload -f /path/file1.fasta -f /path/file2.fn
   --parent PARENT, -p PARENT
                         cosmosid parent folder ID for upload
-  --type {metagenomics,amplicon-16s,amplicon-its}, -t {metagenomics,amplicon-16s,amplicon-its}
+  --type {metagenomics,amplicon-16s,amplicon-its,long-read-amplicon}, -t {metagenomics,amplicon-16s,amplicon-its,long-read-amplicon}
                         Type of analysis for a file
+  --max-concurrency MAX_CONCURRENCY
+                        Max parallel part uploads (default 4)
+  --part-size-mb PART_SIZE_MB
+                        Multipart part size in MB (min 4; default 6)
   -wf WORKFLOW, --workflow WORKFLOW
-                        To specify multiple workflows, define them coma separated without any additional symbols.For example: 
-                        -wf amr_vir,taxa
-                        To specify workflow verions, define it by ':'. For example:
-                        -wf taxa:1.1.0,amr_vir
-  --fastqc-only
-                        Skip workflows selection, fastq files will be processed through the FastQC workflow.
+                        To specify multiple workflows, define them coma
+                        separated without any additional symbols.
+                        Add :<version> if you need to specify version
+                        For example: -wf taxa:1.1.0,amr_vir
+                        (Latest workflow version will be used if it wasn't
+                        specified) Use 'workflows' command to view possible
+                        workflows
+  --fastqc-only         Run only FastQC workflow
   --forward-primer FORWARD_PRIMER
                         Only for 'ampliseq' workflow
   --reverse-primer REVERSE_PRIMER
@@ -315,18 +330,46 @@ optional arguments:
   --host-name {human:2.0.0,human:1.0.0,dog:2.0.0,domestic_cat:2.0.0,cow:1.0.0,chicken:2.0.0,mouse:2.0.0,monkey:2.0.0,cattle:2.0.0,pig:2.0.0}
                         Name for host removal.
                         *Available only for type `metagenomics`
-                        human:2.0.0 - Human 2.0.0 (GCF_009914755.1_T2T-CHM13v2.0)
+                        human:2.0.0 - Human 2.0.0
+                        (GCF_009914755.1_T2T-CHM13v2.0)
                         human:1.0.0 - Human 1.0.0 (GRCh38_p6)
                         dog:2.0.0 - Dog (GCF_014441545.1_ROS_Cfam_1.0)
-                        domestic_cat:2.0.0 - Domestic Cat (GCF_018350175.1_F.catus_Fca126_mat1.0)
+                        domestic_cat:2.0.0 - Domestic Cat
+                        (GCF_018350175.1_F.catus_Fca126_mat1.0)
                         cow:1.0.0 - Cow (GCF_002263795l_1_ARS-UCD1_2)
-                        chicken:2.0.0 - Chicken (GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b)
+                        chicken:2.0.0 - Chicken
+                        (GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b)
                         mouse:2.0.0 - Mouse (GCF_000001635.27_GRCm39)
                         monkey:2.0.0 - Monkey (GCF_003339765.1_Mmul_10)
                         cattle:2.0.0 - Cattle (GCF002263795.2 - ARS-UCD1.3)
                         pig:2.0.0 - Pig (GCF_000003025.6_Sscrofa11.1)
-  --dir DIR, -d DIR
-                        directory with files for upload e.g. cosmosid upload -d /path/my_dir
+  --dir DIR, -d DIR     directory with files for upload e.g. cosmosid upload
+                        -d /path/my_dir
+  --lr-greengenes2      Only for Long Read workflow. Use GreenGenes2 database
+                        for 16S/18S Long Read analysis.
+  --lr-silva            Only for Long Read workflow. Use SILVA database for
+                        16S/18S Long Read analysis.
+  --lr-gtdb             Only for Long Read workflow. Use GTDB SSU 220 database
+                        for 16S/18S Long Read analysis.
+  --lr-emu              Only for Long Read workflow. Use EMU Default database
+                        for 16S/18S Long Read analysis.
+  --lr-midas            Only for Long Read workflow. Use MIDAS database for
+                        16S/18S Long Read analysis.
+  --lr-homd             Only for Long Read workflow. Use HOMD database for
+                        16S/18S Long Read analysis.
+  --min-length MIN_LENGTH
+                        Only for Long Read workflow. Minimum length
+  --max-length MAX_LENGTH
+                        Only for Long Read workflow. Maximum length
+  --min-quality MIN_QUALITY
+                        Only for Long Read workflow. Minimum quality
+  --mm2-seq-type {map-ont,map-hifi}
+                        Only for Long Read workflow. Alignment Preset settings
+  --max-iterations MAX_ITERATIONS
+                        Only for Long Read workflow. Maximum EM iterations
+  --probability-cutoff PROBABILITY_CUTOFF
+                        Only for Long Read workflow. Probability cutoff
+
 
 ```
 
