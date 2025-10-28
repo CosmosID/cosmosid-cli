@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cosmosid_cli"
-version = "2.1.19"
+version = "2.1.20"
 description = "Command line interface (CLI) and Python 3 client library for interacting with the CosmosID API"
 authors = ["CosmosID <support@cosmosid.com>"]
 readme = "README.md"
@@ -36,12 +36,13 @@ importlib_metadata = "^4.8.3"
 [tool.poetry.extras]
 pycurl = ["pycurl"]
 
-[tool.poetry.dev-dependencies]
+[poetry.group.dev.dependencies]
 black = "^22.3.0"
 isort = "^5.10.1"
 pytest = "*"
 pytest-cov = "*"
 pylint = "*"
+ruff = "^0.12"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -54,6 +55,9 @@ force_grid_wrap = 0
 line_length = 120
 
 [tool.black]
+line-length = 120
+
+[tool.ruff]
 line-length = 120
 
 [tool.poetry.scripts]

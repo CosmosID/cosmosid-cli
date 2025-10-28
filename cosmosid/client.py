@@ -100,12 +100,10 @@ class CosmosidApi:
         file_type,
         parent_id=None,
         host_name=None,
-        forward_primer=None,
-        reverse_primer=None,
+        workflow_parameters=None,
         *,
         concurrency=None,
         part_size_mb=None,
-        long_read_params=None,
     ):
         import_wf = ImportWorkflow(base_url=self.base_url, api_key=self.api_key)
         try:
@@ -128,11 +126,9 @@ class CosmosidApi:
                 workflow_ids,
                 [{"files": pair["files_s3"], "file_name": pair["sample_name"]} for pair in pairs],
                 file_type,
-                parent_id,
-                host_name,
-                forward_primer,
-                reverse_primer,
-                long_read_params=long_read_params,
+                folder_id=parent_id,
+                host_name=host_name,
+                workflow_parameters=workflow_parameters,
             )
         except NotFoundException as err:
             self.logger.error("Parent folder for upload doesn't exist.")

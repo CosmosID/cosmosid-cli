@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.20]
+
+* Added `turkey:1.0.0` for `upload` parameter `--host-name`.
+* Fixed input parameters for the Long Read, added `--identity-th
+
 ## [2.1.19]
 
 * Added support for running `UL ITS` workflow 

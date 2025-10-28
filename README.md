@@ -273,21 +273,12 @@ CosmosID supports the following types of analysis:
 
 ```shell
 # cosmosid upload --help
-usage: cosmosid upload [-h] [--file FILE] [--parent PARENT] --type
-                       {metagenomics,amplicon-16s,amplicon-its,long-read-amplicon}
-                       [--max-concurrency MAX_CONCURRENCY]
-                       [--part-size-mb PART_SIZE_MB] [-wf WORKFLOW]
-                       [--fastqc-only] [--forward-primer FORWARD_PRIMER]
-                       [--reverse-primer REVERSE_PRIMER]
-                       [--amplicon-preset {v1_v3,v3_v4,v4}]
-                       [--host-name {human:2.0.0,human:1.0.0,dog:2.0.0,domestic_cat:2.0.0,cow:1.0.0,chicken:2.0.0,mouse:2.0.0,monkey:2.0.0,cattle:2.0.0,pig:2.0.0}]
-                       [--dir DIR] [--lr-greengenes2] [--lr-silva] [--lr-gtdb]
-                       [--lr-emu] [--lr-midas] [--lr-homd]
-                       [--min-length MIN_LENGTH] [--max-length MAX_LENGTH]
-                       [--min-quality MIN_QUALITY]
-                       [--mm2-seq-type {map-ont,map-hifi}]
-                       [--max-iterations MAX_ITERATIONS]
-                       [--probability-cutoff PROBABILITY_CUTOFF]
+usage: cosmosid upload [-h] [--file FILE] [--parent PARENT] --type {metagenomics,amplicon-16s,amplicon-its,long-read-amplicon} [--max-concurrency MAX_CONCURRENCY]
+                       [--part-size-mb PART_SIZE_MB] [-wf WORKFLOW] [--fastqc-only]
+                       [--host-name {human:2.0.0,human:1.0.0,dog:2.0.0,domestic_cat:2.0.0,cow:1.0.0,chicken:2.0.0,mouse:2.0.0,monkey:2.0.0,cattle:2.0.0,pig:2.0.0,turkey:1.0.0}] [--dir DIR]
+                       [--lr-ref LR_REF] [--min-length MIN_LENGTH] [--max-length MAX_LENGTH] [--min-quality MIN_QUALITY] [--mm2-seq-type {map-ont,map-hifi}]
+                       [--max-iterations MAX_ITERATIONS] [--probability-cutoff PROBABILITY_CUTOFF] [--identity-threshold IDENTITY_THRESHOLD] [--forward-primer FORWARD_PRIMER]
+                       [--reverse-primer REVERSE_PRIMER] [--amplicon-preset {v1_v3,v3_v4,v4}]
 
 Upload files to cosmosid.
 
@@ -313,20 +304,6 @@ optional arguments:
                         specified) Use 'workflows' command to view possible
                         workflows
   --fastqc-only         Run only FastQC workflow
-  --forward-primer FORWARD_PRIMER
-                        Only for 'ampliseq' workflow
-  --reverse-primer REVERSE_PRIMER
-                        Only for 'ampliseq' workflow
-  --amplicon-preset {v1_v3,v3_v4,v4}
-                        Only for 'ampliseq' workflowv1_v3:
-                        - forward_primer: AGAGTTTGATCCTGGCTCAG
-                        - reverse_primer: ATTACCGCGGCTGCTGG
-                        v3_v4:
-                        - forward_primer: CCTACGGGRSGCAGCA
-                        - reverse_primer: GACTACHVGGGTATCTAATCC
-                        v4:
-                        - forward_primer: GTGYCAGCMGCCGCGGTAA
-                        - reverse_primer: GGACTACHVGGGTWTCTAAT
   --host-name {human:2.0.0,human:1.0.0,dog:2.0.0,domestic_cat:2.0.0,cow:1.0.0,chicken:2.0.0,mouse:2.0.0,monkey:2.0.0,cattle:2.0.0,pig:2.0.0}
                         Name for host removal.
                         *Available only for type `metagenomics`
@@ -345,18 +322,17 @@ optional arguments:
                         pig:2.0.0 - Pig (GCF_000003025.6_Sscrofa11.1)
   --dir DIR, -d DIR     directory with files for upload e.g. cosmosid upload
                         -d /path/my_dir
-  --lr-greengenes2      Only for Long Read workflow. Use GreenGenes2 database
-                        for 16S/18S Long Read analysis.
-  --lr-silva            Only for Long Read workflow. Use SILVA database for
-                        16S/18S Long Read analysis.
-  --lr-gtdb             Only for Long Read workflow. Use GTDB SSU 220 database
-                        for 16S/18S Long Read analysis.
-  --lr-emu              Only for Long Read workflow. Use EMU Default database
-                        for 16S/18S Long Read analysis.
-  --lr-midas            Only for Long Read workflow. Use MIDAS database for
-                        16S/18S Long Read analysis.
-  --lr-homd             Only for Long Read workflow. Use HOMD database for
-                        16S/18S Long Read analysis.
+  --lr-ref LR_REF
+                        Only for LongRead (16s/18s) Package workflow. Select databases for 16S/18S Long Read analysis (comma-separated, maximum 2).
+                        Available options:
+                        gg2 - GreenGenes2
+                        silva - SILVA
+                        gtdb_ssu_220 - GTDB SSU 220
+                        emu - EMU Default
+                        midas - MIDAS
+                        homd - HOMD
+                        Example: --lr-ref gg2,midas
+
   --min-length MIN_LENGTH
                         Only for Long Read workflow. Minimum length
   --max-length MAX_LENGTH
@@ -369,8 +345,22 @@ optional arguments:
                         Only for Long Read workflow. Maximum EM iterations
   --probability-cutoff PROBABILITY_CUTOFF
                         Only for Long Read workflow. Probability cutoff
-
-
+  --identity-threshold IDENTITY_THRESHOLD
+                        Only for Long Read workflow. Identity threshold
+  --forward-primer FORWARD_PRIMER
+                        Only for 'ampliseq' workflow
+  --reverse-primer REVERSE_PRIMER
+                        Only for 'ampliseq' workflow
+  --amplicon-preset {v1_v3,v3_v4,v4}
+                        Only for 'ampliseq' workflowv1_v3:
+                        - forward_primer: AGAGTTTGATCCTGGCTCAG
+                        - reverse_primer: ATTACCGCGGCTGCTGG
+                        v3_v4:
+                        - forward_primer: CCTACGGGRSGCAGCA
+                        - reverse_primer: GACTACHVGGGTATCTAATCC
+                        v4:
+                        - forward_primer: GTGYCAGCMGCCGCGGTAA
+                        - reverse_primer: GGACTACHVGGGTWTCTAAT
 ```
 
 To upload sample file to CosmosID run `cosmosid` command with `upload` subcommand. By default samples will be uploaded

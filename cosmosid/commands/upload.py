@@ -5,6 +5,12 @@ from distutils.version import StrictVersion
 
 from cliff.command import Command
 from cosmosid.helpers import parser_builders, argument_actions, argument_validators
+from cosmosid.helpers.exceptions import (
+    CosmosidConnectionError,
+    CosmosidServerError,
+    AuthenticationFailed,
+    ValidationError,
+)
 from cosmosid.enums import (
     AMPLICON_PRESETS,
     HOST_REMOVAL_OPTIONS,
@@ -12,11 +18,14 @@ from cosmosid.enums import (
     Workflows,
     CLI_NAME_TO_WF_NAME,
 )
-from cosmosid.helpers.exceptions import CosmosidConnectionError, CosmosidServerError, AuthenticationFailed
 
 
-class LongReadArguments:
-    LONG_READ_WORKFLOWS = [
+class WorkflowRegistry:
+    """Registry to organize workflows by type for parameter handling."""
+
+    # Workflow categorization by type
+    LONG_READ_WORKFLOWS = {
+        # 16S/18S workflows that require database selection
         Workflows.LongRead16s18sPackage,
         Workflows.LongRead16s18sGreengenes2Amplicon,
         Workflows.LongRead16s18sSilvaAmplicon,
@@ -24,20 +33,55 @@ class LongReadArguments:
         Workflows.LongRead16s18sEmuDefaultAmplicon,
         Workflows.LongRead16s18sMidasAmplicon,
         Workflows.LongRead16s18sHomdAmplicon,
+        # ITS and Full Length rRNA workflows
         Workflows.LongReadItsAmplicon,
         Workflows.FullLengthRrnaAmplicon,
+    }
+
+    # Workflows that require database selection (only the generic 16S/18S package)
+    DATABASE_REQUIRING_WORKFLOWS = {
+        Workflows.LongRead16s18sPackage,
+    }
+
+    # Amplicon workflows that require primers
+    AMPLICON_WORKFLOWS = {
+        Workflows.AmpliseqBatchGroup,
+    }
+
+    # Database options available ONLY for LongRead16s18sPackage workflow
+    # These are the unique database choices that users can select for the generic package workflow
+    # Other workflows (LongRead16s18sGreengenes2Amplicon, etc.) are already bound to specific databases
+    LONGREAD_16S18S_PACKAGE_DATABASE_OPTIONS = [
+        {"key": "lr-greengenes2", "label": "GreenGenes2", "params_key": "gg2"},
+        {"key": "lr-silva", "label": "SILVA", "params_key": "silva"},
+        {"key": "lr-gtdb", "label": "GTDB SSU 220", "params_key": "gtdb_ssu_220"},
+        {"key": "lr-emu", "label": "EMU Default", "params_key": "emu"},
+        {"key": "lr-midas", "label": "MIDAS", "params_key": "midas"},
+        {"key": "lr-homd", "label": "HOMD", "params_key": "homd"},
     ]
 
-    db_choices_for_16s18s = [
-        {"key": "lr-greengenes2", "label": "GreenGenes2"},
-        {"key": "lr-silva", "label": "SILVA"},
-        {"key": "lr-gtdb", "label": "GTDB SSU 220"},
-        {"key": "lr-emu", "label": "EMU Default"},
-        {"key": "lr-midas", "label": "MIDAS"},
-        {"key": "lr-homd", "label": "HOMD"},
-    ]
 
-    long_read_args = [
+
+    @classmethod
+    def get_long_read_workflows(cls, workflow_ids):
+        """Filter to get only long read workflows from a list."""
+        return [wf for wf in workflow_ids if wf in cls.LONG_READ_WORKFLOWS]
+
+    @classmethod
+    def get_amplicon_workflows(cls, workflow_ids):
+        """Filter to get only amplicon workflows from a list."""
+        return [wf for wf in workflow_ids if wf in cls.AMPLICON_WORKFLOWS]
+
+    @classmethod
+    def get_database_requiring_workflows(cls, workflow_ids):
+        """Filter to get only database-requiring workflows from a list."""
+        return [wf for wf in workflow_ids if wf in cls.DATABASE_REQUIRING_WORKFLOWS]
+
+
+class LongReadArgumentPropagator:
+    """Handles adding long read arguments to the argument parser."""
+
+    LONG_READ_ARGS = [
         {"key": "min-length", "default": 1200, "help": "Only for Long Read workflow. Minimum length"},
         {"key": "max-length", "default": 10000, "help": "Only for Long Read workflow. Maximum length"},
         {"key": "min-quality", "default": 17, "help": "Only for Long Read workflow. Minimum quality"},
@@ -49,23 +93,31 @@ class LongReadArguments:
         },
         {"key": "max-iterations", "default": 20, "help": "Only for Long Read workflow. Maximum EM iterations"},
         {"key": "probability-cutoff", "default": 0.9, "help": "Only for Long Read workflow. Probability cutoff"},
+        {"key": "identity-threshold", "default": 0.9, "help": "Only for Long Read workflow. Identity threshold"},
     ]
 
     @classmethod
-    def add_db_args_for_16s18s(cls, parser):
-        """Builds arguments for 16S/18S long read databases."""
-        for db in cls.db_choices_for_16s18s:
-            parser.add_argument(
-                f"--{db['key']}",
-                action="store_true",
-                help=f"Only for Long Read workflow. Use {db['label']} database for 16S/18S Long Read analysis.",
-                default=False,
-            )
+    def add_database_args(cls, parser):
+        """Add database selection argument for LongRead16s18sPackage workflow only."""
+        # Get available database keys and labels for help text
+        db_options = WorkflowRegistry.LONGREAD_16S18S_PACKAGE_DATABASE_OPTIONS
+        help_text = "Only for LongRead (16s/18s) Package workflow. Select databases for 16S/18S Long Read analysis (comma-separated, maximum 2).\n"
+        help_text += "Available options:\n"
+        for db in db_options:
+            help_text += f"  {db['params_key']:<15} - {db['label']}\n"
+        help_text += "Example: --lr-ref gg2,midas"
+        
+        parser.add_argument(
+            "--lr-ref",
+            type=str,
+            help=help_text,
+            default=None,
+        )
 
     @classmethod
     def add_long_read_args(cls, parser):
-        """Builds common long read arguments."""
-        for arg in cls.long_read_args:
+        """Add common long read arguments."""
+        for arg in cls.LONG_READ_ARGS:
             parser.add_argument(
                 f"--{arg['key']}",
                 type=type(arg["default"]),
@@ -74,26 +126,165 @@ class LongReadArguments:
                 choices=arg.get("choices", None),
             )
 
+
+class AmpliconArguments:
+    """Handles adding amplicon/primer arguments to the argument parser."""
+
     @classmethod
-    def build_wf_params(cls, parsed_args, workflow_ids):
-        """Builds workflow parameters for long read workflows."""
+    def register_args(cls, parser):
+        """Add primer-related arguments."""
+        parser.add_argument(
+            "--forward-primer",
+            help="Only for 'ampliseq' workflow",
+            type=argument_validators.is_primer,
+            default=None,
+        )
+        parser.add_argument(
+            "--reverse-primer",
+            help="Only for 'ampliseq' workflow",
+            type=argument_validators.is_primer,
+            default=None,
+        )
+        parser.add_argument(
+            "--amplicon-preset",
+            choices=AMPLICON_PRESETS.keys(),
+            help="Only for 'ampliseq' workflow"
+            + "\n".join(
+                [
+                    f"""{preset_name}:
+                    - forward_primer: {preset_value["forward_primer"]}
+                    - reverse_primer: {preset_value["reverse_primer"]}
+                """
+                    for preset_name, preset_value in AMPLICON_PRESETS.items()
+                ]
+            ),
+            type=str,
+            default=None,
+        )
+
+
+class LongReadArgumentValidator:
+    """Validates long read workflow arguments."""
+
+    @classmethod
+    def validate(cls, parsed_args, workflow_ids):
+        """Validate database selection for workflows that require it."""
+        db_requiring_workflows = WorkflowRegistry.get_database_requiring_workflows(workflow_ids)
+
+        if db_requiring_workflows:
+            if not parsed_args.lr_ref:
+                raise ValidationError("You must specify at least 1 database using --lr-ref for LongRead16s18sPackage workflow.")
+            
+            # Parse comma-separated database references
+            requested_databases = [db.strip() for db in parsed_args.lr_ref.split(",")]
+            
+            # Validate database choices
+            valid_databases = {db["params_key"] for db in WorkflowRegistry.LONGREAD_16S18S_PACKAGE_DATABASE_OPTIONS}
+            invalid_databases = [db for db in requested_databases if db not in valid_databases]
+            
+            if invalid_databases:
+                valid_options = ", ".join(sorted(valid_databases))
+                raise ValidationError(f"Invalid database references: {', '.join(invalid_databases)}. "
+                                    f"Valid options are: {valid_options}")
+            
+            if len(requested_databases) > 2:
+                raise ValidationError("You can select up to 2 databases for 16S/18S Long Read analysis.")
+            
+            return requested_databases
+        return []
+
+
+class AmpliconArgumentValidator:
+    """Validates amplicon workflow arguments."""
+
+    @classmethod
+    def validate(cls, parsed_args, workflow_ids):
+        """Validate primer arguments and return forward/reverse primers."""
+        forward_primer = None
+        reverse_primer = None
+
+        # Check if any workflow requires primers (amplicon workflows)
+        amplicon_workflows = WorkflowRegistry.get_amplicon_workflows(workflow_ids)
+
+        if amplicon_workflows:
+            # Validate required arguments
+            if not (parsed_args.amplicon_preset or (parsed_args.forward_primer and parsed_args.reverse_primer)):
+                raise ValidationError(
+                    "Next arguments are required for Amplicon workflows: "
+                    "`--amplicon-preset` or `--forward-primer` with `--reverse-primer`"
+                )
+
+        # Check if primer arguments are used with non-supporting workflows
+        if parsed_args.amplicon_preset or parsed_args.forward_primer or parsed_args.reverse_primer:
+            if not amplicon_workflows:
+                raise ValidationError(
+                    "Primer arguments are only available for Amplicon workflows: "
+                    "`--amplicon-preset`, `--forward-primer`, `--reverse-primer`"
+                )
+
+            # Validate mutually exclusive arguments
+            if parsed_args.amplicon_preset and (parsed_args.forward_primer or parsed_args.reverse_primer):
+                raise ValidationError("--amplicon-preset cannot be used with forward or reverse primers")
+
+            # Set primers based on arguments
+            if parsed_args.amplicon_preset:
+                forward_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]["forward_primer"]
+                reverse_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]["reverse_primer"]
+            else:
+                if parsed_args.forward_primer:
+                    forward_primer = parsed_args.forward_primer
+                if parsed_args.reverse_primer:
+                    reverse_primer = parsed_args.reverse_primer
+
+        return forward_primer, reverse_primer
+
+
+class LongReadWorkflowParamBuilder:
+    """Exports validated long read arguments to workflow parameters."""
+
+    @classmethod
+    def build_parameters(cls, parsed_args, workflow_ids, validated_databases):
+        """Export long read parameters for workflows that support them."""
         workflow_params = {}
-        if set(workflow_ids).intersection(cls.LONG_READ_WORKFLOWS):
+
+        # Check if any workflow supports long read parameters
+        long_read_workflows = WorkflowRegistry.get_long_read_workflows(workflow_ids)
+
+        if long_read_workflows:
             workflow_params["min_length"] = parsed_args.min_length
             workflow_params["max_length"] = parsed_args.max_length
             workflow_params["min_quality"] = parsed_args.min_quality
             workflow_params["mm2_seq_type"] = parsed_args.mm2_seq_type
             workflow_params["max_iterations"] = parsed_args.max_iterations
             workflow_params["probability_cutoff"] = parsed_args.probability_cutoff
+            workflow_params["identity_threshold"] = parsed_args.identity_threshold
 
-            workflow_params["long_read_greengenes2"] = parsed_args.lr_greengenes2
-            workflow_params["long_read_silva"] = parsed_args.lr_silva
-            workflow_params["long_read_gtdb_ssu_220"] = parsed_args.lr_gtdb
-            workflow_params["long_read_emu_default"] = parsed_args.lr_emu
-            workflow_params["long_read_midas"] = parsed_args.lr_midas
-            workflow_params["long_read_homd"] = parsed_args.lr_homd
+            # Add database parameters if validated
+            if validated_databases:
+                workflow_params["databases"] = validated_databases
 
         return workflow_params
+
+
+class AmpliseqWorkflowParamBuilder:
+    """Exports validated amplicon arguments to workflow parameters."""
+
+    @classmethod
+    def build_parameters(cls, forward_primer, reverse_primer):
+        """Export primer parameters."""
+        return {
+            "forward_primer": forward_primer,
+            "reverse_primer": reverse_primer,
+        }
+
+
+class AmpliconWorkflowHelper:
+    """Legacy helper class for amplicon workflow primer handling."""
+
+    @classmethod
+    def validate_and_get_primers(cls, parsed_args, workflow_ids):
+        """Validate primer arguments and return forward/reverse primers."""
+        return AmpliconArgumentValidator.validate(parsed_args, workflow_ids)
 
 
 class Upload(Command):
@@ -182,36 +373,14 @@ class Upload(Command):
             default="taxa",
         )
 
-        parser.add_argument("--fastqc-only", help="Run only FastQC workflow", action="store_true", default=False)
+        parser.add_argument(
+            "--fastqc-only",
+            help="Run only FastQC workflow",
+            action="store_true",
+            default=False,
+        )
 
-        parser.add_argument(
-            "--forward-primer",
-            help="Only for 'ampliseq' workflow",
-            type=argument_validators.is_primer,
-            default=None,
-        )
-        parser.add_argument(
-            "--reverse-primer",
-            help="Only for 'ampliseq' workflow",
-            type=argument_validators.is_primer,
-            default=None,
-        )
-        parser.add_argument(
-            "--amplicon-preset",
-            choices=AMPLICON_PRESETS.keys(),
-            help="Only for 'ampliseq' workflow"
-            + "\n".join(
-                [
-                    f"""{preset_name}:
-                    - forward_primer: {preset_value['forward_primer']}
-                    - reverse_primer: {preset_value['reverse_primer']}
-                """
-                    for preset_name, preset_value in AMPLICON_PRESETS.items()
-                ]
-            ),
-            type=str,
-            default=None,
-        )
+        # Primer arguments are now added by AmpliconArgumentPropagator
 
         host_removal_options_text = "\n".join([f"{key:<30}- {label}" for key, label in HOST_REMOVAL_OPTIONS.items()])
         parser.add_argument(
@@ -222,10 +391,111 @@ class Upload(Command):
             default=None,
         )
 
-        parser_builders.directory(parser, help="directory with files for upload e.g. cosmosid upload -d /path/my_dir")
-        LongReadArguments.add_db_args_for_16s18s(parser)
-        LongReadArguments.add_long_read_args(parser)
+        parser_builders.directory(
+            parser,
+            help="directory with files for upload e.g. cosmosid upload -d /path/my_dir",
+        )
+
+        # Add workflow-specific arguments using the new propagators
+        LongReadArgumentPropagator.add_database_args(parser)
+        LongReadArgumentPropagator.add_long_read_args(parser)
+        AmpliconArguments.register_args(parser)
+
+        # Add cross-argument validation by wrapping parse_args
+        original_parse_args = parser.parse_args
+        
+        def validated_parse_args(*args, **kwargs):
+            namespace = original_parse_args(*args, **kwargs)
+            self._validate_parsed_arguments(namespace, parser)
+            return namespace
+        
+        parser.parse_args = validated_parse_args
         return parser
+
+    def _validate_parsed_arguments(self, namespace, parser):
+        """Validate cross-argument dependencies after parsing."""
+        
+        # Validate workflow-specific requirements
+        if hasattr(namespace, 'workflow') and namespace.workflow:
+            workflows = namespace.workflow.split(',')
+            workflow_ids = []  # We'll need to convert workflow names to IDs for validation
+            
+            # Convert workflow names to workflow IDs for validation
+            for wf in workflows:
+                # Remove version if present and check for specific workflows
+                if 'long_read_16s18s_package' in wf:
+                    workflow_ids.append(Workflows.LongRead16s18sPackage)
+                elif 'ampliseq' in wf:
+                    workflow_ids.append(Workflows.AmpliseqBatchGroup)
+            
+            # Use LongReadArgumentValidator for lr-ref validation
+            try:
+                LongReadArgumentValidator.validate(namespace, workflow_ids)
+            except ValidationError as e:
+                # Convert ValidationError to parser error for proper CLI formatting
+                parser.error(str(e))
+            
+            # Use AmpliconArgumentValidator for primer validation
+            try:
+                AmpliconArgumentValidator.validate(namespace, workflow_ids)
+            except ValidationError as e:
+                # Convert ValidationError to parser error for proper CLI formatting
+                parser.error(str(e))
+
+    def _prepare_workflow_parameters(self, parsed_args, workflow_ids):
+        """Prepare workflow parameters as a ready-to-use dictionary {workflow_id: parameters}."""
+        workflow_parameters = {}
+        
+        # Handle amplicon workflow parameters
+        amplicon_workflows = WorkflowRegistry.get_amplicon_workflows(workflow_ids)
+        if amplicon_workflows:
+            # Get primer parameters directly from parsed_args (validation already done in parser)
+            forward_primer, reverse_primer = self._get_primer_parameters(parsed_args)
+            amplicon_params = AmpliseqWorkflowParamBuilder.build_parameters(forward_primer, reverse_primer)
+            for workflow_id in amplicon_workflows:
+                workflow_parameters[workflow_id] = amplicon_params
+        
+        # Handle long read workflow parameters
+        long_read_workflows = WorkflowRegistry.get_long_read_workflows(workflow_ids)
+        if long_read_workflows:
+            for workflow_id in long_read_workflows:
+                # Get base long read parameters
+                base_params = self._get_long_read_parameters(parsed_args, workflow_id)                
+                workflow_parameters[workflow_id] = base_params
+        
+        return workflow_parameters
+    
+    def _get_primer_parameters(self, parsed_args):
+        """Extract primer parameters from parsed arguments."""
+        if parsed_args.amplicon_preset:
+            preset = AMPLICON_PRESETS[parsed_args.amplicon_preset]
+            return preset["forward_primer"], preset["reverse_primer"]
+        else:
+            return parsed_args.forward_primer, parsed_args.reverse_primer
+    
+    def _get_long_read_parameters(self, parsed_args, workflow_id):
+        """Extract long read parameters from parsed arguments."""
+        base_params =  {
+            "min_length": parsed_args.min_length,
+            "max_length": parsed_args.max_length,
+            "min_quality": parsed_args.min_quality,
+            "mm2_seq_type": parsed_args.mm2_seq_type,
+            "max_iterations": parsed_args.max_iterations,
+            "probability_cutoff": parsed_args.probability_cutoff,
+            "identity_threshold": parsed_args.identity_threshold,
+        }
+        
+        if workflow_id == Workflows.LongReadItsAmplicon:            
+            base_params["database"] = "long_read_unite"
+        
+        if workflow_id == Workflows.FullLengthRrnaAmplicon:
+            base_params["database"] = "long_read_rrn"
+        
+        if workflow_id == Workflows.LongRead16s18sPackage and parsed_args.lr_ref:
+            databases = [db.strip() for db in parsed_args.lr_ref.split(",")]
+            base_params["databases"] = databases
+
+        return base_params
 
     def take_action(self, parsed_args):
         """Send files to analysis."""
@@ -279,7 +549,8 @@ class Upload(Command):
                     version_to_wf = {
                         workflow["version"]: workflow
                         for workflow in filter(
-                            lambda x: x["name"] == CLI_NAME_TO_WF_NAME.get(wf_name, wf_name), enabled_workflows
+                            lambda x: x["name"] == CLI_NAME_TO_WF_NAME.get(wf_name, wf_name),
+                            enabled_workflows,
                         )
                     }
 
@@ -297,36 +568,8 @@ class Upload(Command):
                     f"All workflows from the given list '{parsed_args.workflow}' are not enabled, file(s) cannot be uploaded. Aborting."
                 )
 
-        forward_primer = None
-        reverse_primer = None
-
-        if Workflows.AmpliseqBatchGroup in workflow_ids and not (
-            parsed_args.amplicon_preset or (parsed_args.forward_primer and parsed_args.reverse_primer)
-        ):
-            raise Exception(
-                "Next arguments are required for Amplicon 16S Batch: "
-                "`--amplicon-preset` or  `--forward-primer` with `--reverse-primer`"
-            )
-
-        if parsed_args.amplicon_preset or parsed_args.forward_primer or parsed_args.reverse_primer:
-            if Workflows.AmpliseqBatchGroup not in workflow_ids:
-                raise Exception(
-                    "Next arguments are available only for Amplicon 16S Batch: "
-                    "`--amplicon-preset`, `--forward-primer`, `--reverse-primer`"
-                )
-
-            if parsed_args.amplicon_preset and (parsed_args.forward_primer or parsed_args.reverse_primer):
-                raise Exception("--amplicon-preset cannot be used with forward or reverse primers")
-
-            if parsed_args.amplicon_preset:
-                forward_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]["forward_primer"]
-                reverse_primer = AMPLICON_PRESETS[parsed_args.amplicon_preset]["reverse_primer"]
-            if parsed_args.forward_primer:
-                forward_primer = parsed_args.forward_primer
-            if parsed_args.reverse_primer:
-                reverse_primer = parsed_args.reverse_primer
-
-        long_read_params = LongReadArguments.build_wf_params(parsed_args, workflow_ids)
+        # Prepare workflow parameters as ready-to-use dictionary {workflow_id: parameters}
+        workflow_parameters = self._prepare_workflow_parameters(parsed_args, workflow_ids)
 
         pairs = []
         files = sorted(files)
@@ -382,11 +625,9 @@ class Upload(Command):
             file_type=parsed_args.type,
             parent_id=parent_id,
             host_name=parsed_args.host_name,
-            forward_primer=forward_primer,
-            reverse_primer=reverse_primer,
+            workflow_parameters=workflow_parameters,
             concurrency=parsed_args.max_concurrency,
             part_size_mb=parsed_args.part_size_mb,
-            long_read_params=long_read_params,
         )
         self.app.logger.info("\nFiles have been sent to analysis.")
         self.app.logger.info("Task Done")

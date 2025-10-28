@@ -29,6 +29,7 @@ HOST_REMOVAL_OPTIONS = {
     "monkey:2.0.0": "Monkey (GCF_003339765.1_Mmul_10)",
     "cattle:2.0.0": "Cattle (GCF002263795.2 - ARS-UCD1.3)",
     "pig:2.0.0": "Pig (GCF_000003025.6_Sscrofa11.1)",
+    "turkey:1.0.0": "Turkey (GCF_000146605.3_Turkey_5.1)",
 }
 
 FILE_TYPES = {"metagenomics": 2, "amplicon-16s": 5, "amplicon-its": 6, "long-read-amplicon": 15}
